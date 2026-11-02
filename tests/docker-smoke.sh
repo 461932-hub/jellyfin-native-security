@@ -5,8 +5,15 @@ task_container=jellyfin-native-ci-smoke
 task_config=jellyfin-native-ci-config
 task_cache=jellyfin-native-ci-cache
 task_cleanup() {
+    task_exit=$?
+    if [[ "$task_exit" != 0 ]]; then
+        echo 'Docker smoke test failed; isolated container diagnostics:' >&2
+        docker inspect --format '{{json .State}}' "$task_container" >&2 || true
+        docker logs --tail 160 "$task_container" >&2 || true
+    fi
     docker rm -f "$task_container" >/dev/null 2>&1 || true
     docker volume rm "$task_config" "$task_cache" >/dev/null 2>&1 || true
+    return "$task_exit"
 }
 trap task_cleanup EXIT
 docker run --detach --name "$task_container" \
@@ -21,7 +28,8 @@ docker run --detach --name "$task_container" \
     "$task_image" >/dev/null
 task_ready=false
 for task_try in $(seq 1 90); do
-    if curl --silent --fail http://127.0.0.1:18099/System/Info/Public > /tmp/native-public-info.json; then
+    if curl --silent --fail --max-time 3 http://127.0.0.1:18099/health > /tmp/native-health.txt \
+        && curl --silent --fail --max-time 3 http://127.0.0.1:18099/System/Info/Public > /tmp/native-public-info.json; then
         task_ready=true
         break
     fi
@@ -38,7 +46,8 @@ docker exec "$task_container" sh -c "grep -Eq '^CapEff:[[:space:]]+0+$' /proc/1/
 for task_path in \
     Items/11111111111111111111111111111111/Images/Primary \
     'Videos/11111111111111111111111111111111/stream?Static=true'; do
-    task_status=$(curl --silent --output /dev/null --dump-header /tmp/native-headers.txt \
+    task_status=$(curl --silent --show-error --max-time 10 --retry 3 --retry-connrefused --retry-all-errors \
+        --output /dev/null --dump-header /tmp/native-headers.txt \
         --write-out '%{http_code}' "http://127.0.0.1:18099/$task_path")
     [[ "$task_status" == 401 ]]
     grep -qi '^X-Jellyfin-Media-Security: native-preview-1' /tmp/native-headers.txt
