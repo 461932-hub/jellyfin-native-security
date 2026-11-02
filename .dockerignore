@@ -1,0 +1,11 @@
+**/bin
+**/obj
+**/.git
+**/node_modules
+**/__pycache__
+.github
+test-results
+*.zip
+*.log
+test.env
+github-tools

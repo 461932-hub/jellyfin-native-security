@@ -1,0 +1,39 @@
+Proxy- und Protokollhinweise zum nativen Testfork
+================================================
+
+Die TV-Direct-Play-Anpassung schreibt keinen normalen Jellyfin-Sitzungstoken
+in ihre neue Adresse. PlaybackGrant ist eine zufaellige, prozesslokale
+Berechtigung fuer ein bestimmtes Medium, eine Quelle und eine Wiedergabesitzung.
+Sie wird bei jedem neuen Abruf mit der aktuellen Jellyfin-Sitzung und den
+aktuellen Bibliotheks-/Medienrechten verbunden. Eine gelesene URL kann nicht
+die Berechtigung allein durch Abrufen verlaengern.
+
+Diese beschraenkte URL ist dennoch ein Geheimnis fuer den einzelnen Film.
+Der Proxy soll ganze Abfragezeichenfolgen, Authorization- und Cookie-Header
+nicht protokollieren. Native HLS-/Untertiteladressen anderer Wiedergabepfade
+koennen weiterhin normale Jellyfin-Sitzungstoken enthalten. Der Fork aendert
+deren gesamte URL-/Client-Infrastruktur nicht nachtraeglich.
+
+Beispiel eines Nginx-Formats ohne Query im http-Kontext:
+
+log_format jellyfin_safe '$remote_addr "$request_method $uri $server_protocol" $status $body_bytes_sent';
+
+Das Format muss in der tatsaechlich verwendeten server-/location-Konfiguration
+gelten. $request, $request_uri, $args und vollstaendige Referer nicht daneben
+in ein zweites Access-Log schreiben. Auch Error-Logs und Geraeteprotokolle
+koennen URLs enthalten. Nginx Proxy Manager erzeugt eigene Logzeilen; eine
+zusaetzliche sichere Zeile ersetzt die bestehende nicht automatisch.
+
+Die vorhandenen bekannten-Proxy-Pruefungen des offiziellen Servers bleiben
+erhalten. Ohne bekannte Proxys wertet Jellyfin weitergeleitete IP-/Schema-
+Header nicht aus. Die Wiedergabebasisadresse stammt allein aus der expliziten
+SecureMedia-Konfiguration, nicht aus Host oder Forwarded-Host der Anfrage.
+
+Die Antwortheader fuer Bilder und beschraenkte Videoberechtigungen unterbinden
+oeffentliche Zwischenspeicherung. Bereits vor dem Schutz zwischengespeicherte
+oeffentliche Bilder werden dadurch nicht aus fremden Browsern entfernt.
+Vor der spaeteren Produktionspruefung bestehende Proxy-Caches gesondert pruefen.
+
+Eine TLS-Absicherung des Proxy, offene Routerports, saubere Backups, Passwoerter,
+installierte Drittanbieterplugins und Kontenrechte bleiben eigenstaendige
+Bestandteile der echten Serverkonfiguration und sind kein Ergebnis des Builds.

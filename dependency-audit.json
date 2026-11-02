@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "parameters": "--vulnerable --include-transitive",
+  "sources": [
+    "https://api.nuget.org/v3/index.json"
+  ],
+  "projects": [
+    {
+      "path": "C:/Users/Danie/Documents/ChatGPT/test 22/Jellyfin-Sicherer-Server-12.4/server/Jellyfin.Server/Jellyfin.Server.csproj"
+    }
+  ]
+}

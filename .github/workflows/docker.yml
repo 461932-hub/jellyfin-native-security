@@ -1,0 +1,64 @@
+name: Build and test Docker image
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: native-security-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  docker:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}
+      VERSION: 12.4-preview1
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Check sources and CasaOS configuration
+        run: |
+          sha256sum -c SOURCE.SHA256SUMS --quiet
+          docker compose -f CasaOS-Import.yaml config --quiet
+          bash -n tests/docker-smoke.sh
+      - name: Run API regression tests
+        run: |
+          mkdir -p test-results
+          docker run --rm --volume "$GITHUB_WORKSPACE:/src" --workdir /src/server \
+            mcr.microsoft.com/dotnet/sdk:10.0.403 \
+            dotnet test tests/Jellyfin.Api.Tests/Jellyfin.Api.Tests.csproj \
+            -c Release -m:1 -nr:false -p:UseSharedCompilation=false \
+            -p:Version=12.4.0 -p:AssemblyVersion=12.4.0.0 -p:FileVersion=12.4.0.1 \
+            --logger 'trx;LogFileName=api-linux.trx' --results-directory /src/test-results
+      - name: Build from the full source code
+        run: |
+          docker build --platform linux/amd64 --tag "$IMAGE:$VERSION" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" .
+      - name: Start and verify isolated Linux container
+        run: bash tests/docker-smoke.sh "$IMAGE:$VERSION"
+      - name: Publish image
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE:$VERSION"
+          docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE:$VERSION" > image-digest.txt
+          docker logout ghcr.io
+      - name: Publish CasaOS installation files and Linux test evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            gh release upload "$VERSION" CasaOS-Import.yaml image-digest.txt \
+              test-results/docker-smoke.json test-results/api-linux.trx --clobber
+          else
+            gh release create "$VERSION" --target "$GITHUB_SHA" --prerelease \
+              --title 'Jellyfin 12.4 native security - CasaOS test candidate' \
+              --notes-file RELEASE-NOTES.md CasaOS-Import.yaml image-digest.txt \
+              test-results/docker-smoke.json test-results/api-linux.trx
+          fi

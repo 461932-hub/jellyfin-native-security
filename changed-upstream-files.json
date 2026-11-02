@@ -1,0 +1,6 @@
+[
+  "Emby.Server.Implementations/Session/SessionManager.cs",
+  "Jellyfin.Api/Helpers/StreamingHelpers.cs",
+  "Jellyfin.Api/Jellyfin.Api.csproj",
+  "Jellyfin.Server/Startup.cs"
+]

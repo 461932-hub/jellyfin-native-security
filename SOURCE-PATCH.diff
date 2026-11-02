@@ -1,0 +1,2001 @@
+--- a/Emby.Server.Implementations/Session/SessionManager.cs
++++ b/Emby.Server.Implementations/Session/SessionManager.cs
+@@ -1,3 +1,4 @@
++// Modified 2026-11-02 for the native media-security test fork; see SOURCE-PATCH.diff.
+ #nullable disable
+ 
+ using System;
+@@ -1837,7 +1838,7 @@
+         {
+             CheckDisposed();
+ 
+-            _logger.LogInformation("Logging out access token {0}", device.AccessToken);
++            _logger.LogInformation("Logging out authenticated device session");
+ 
+             await _deviceManager.DeleteDevice(device).ConfigureAwait(false);
+ 
+--- a/Jellyfin.Api/Helpers/StreamingHelpers.cs
++++ b/Jellyfin.Api/Helpers/StreamingHelpers.cs
+@@ -1,3 +1,4 @@
++// Modified 2026-11-02 for the native media-security test fork; see SOURCE-PATCH.diff.
+ using System;
+ using System.Collections.Generic;
+ using System.Globalization;
+@@ -14,9 +15,11 @@
+ using MediaBrowser.Controller.Entities;
+ using MediaBrowser.Controller.Library;
+ using MediaBrowser.Controller.MediaEncoding;
++using MediaBrowser.Controller.Net;
+ using MediaBrowser.Controller.Streaming;
+ using MediaBrowser.Model.Dlna;
+ using MediaBrowser.Model.Dto;
++using MediaBrowser.Model.Library;
+ using Microsoft.AspNetCore.Http;
+ using Microsoft.Net.Http.Headers;
+ 
+@@ -160,6 +163,21 @@
+             }
+         }
+ 
++        // Validate the effective source after legacy Params/LiveStreamId have
++        // been resolved. Checking only the route or the original query permits
++        // a later parser/source lookup to change what file is actually read.
++        if (state.User is null || !item.IsVisibleStandalone(state.User) || item.GetPlayAccess(state.User) == PlayAccess.None)
++        {
++            throw new SecurityException("Media is not accessible for the authenticated user.");
++        }
++
++        var permittedSources = await mediaSourceManager.GetPlaybackMediaSources(item, state.User, false, false, cancellationToken).ConfigureAwait(false);
++        if (mediaSource is null || string.IsNullOrEmpty(mediaSource.Id)
++            || !permittedSources.Any(source => string.Equals(source.Id, mediaSource.Id, StringComparison.OrdinalIgnoreCase)))
++        {
++            throw new SecurityException("The effective media source is not permitted for this item.");
++        }
++
+         var encodingOptions = serverConfigurationManager.GetEncodingOptions();
+ 
+         encodingHelper.AttachMediaSourceInfo(state, encodingOptions, mediaSource, url);
+--- a/Jellyfin.Api/Jellyfin.Api.csproj
++++ b/Jellyfin.Api/Jellyfin.Api.csproj
+@@ -1,4 +1,5 @@
+ <Project Sdk="Microsoft.NET.Sdk">
++  <!-- Modified 2026-11-02: embed the native authenticated image adapter. -->
+ 
+   <!-- ProjectGuid is only included as a requirement for SonarQube analysis -->
+   <PropertyGroup>
+@@ -45,4 +46,8 @@
+     </AssemblyAttribute>
+   </ItemGroup>
+ 
++  <ItemGroup>
++    <EmbeddedResource Include="Security/Web/image-client.js" />
++  </ItemGroup>
++
+ </Project>
+--- a/Jellyfin.Server/Startup.cs
++++ b/Jellyfin.Server/Startup.cs
+@@ -1,3 +1,4 @@
++// Modified 2026-11-02 for the native media-security test fork; see SOURCE-PATCH.diff.
+ using System;
+ using System.Globalization;
+ using System.IO;
+@@ -9,6 +10,7 @@
+ using Emby.Server.Implementations.EntryPoints;
+ using Emby.Server.Implementations.Localization;
+ using Jellyfin.Api.Middleware;
++using Jellyfin.Api.Security;
+ using Jellyfin.Database.Implementations;
+ using Jellyfin.LiveTv.Extensions;
+ using Jellyfin.LiveTv.Recordings;
+@@ -78,6 +80,7 @@
+             services.AddCustomAuthentication();
+ 
+             services.AddJellyfinApiAuthorization();
++            services.AddNativeMediaSecurity(_configuration, _serverApplicationHost.SystemId);
+ 
+             var productHeader = new ProductInfoHeaderValue(
+                 _serverApplicationHost.Name.Replace(' ', '-'),
+@@ -229,6 +232,7 @@
+                 }
+ 
+                 mainApp.UseStaticFiles();
++                mainApp.UseNativeMediaCapabilities();
+                 mainApp.UseAuthentication();
+                 mainApp.UseJellyfinApiSwagger(_serverConfigurationManager);
+                 mainApp.UseQueryStringDecoding();
+--- /dev/null
++++ b/Jellyfin.Api/Security/AndroidTvImageFilter.cs
+@@ -0,0 +1,204 @@
++// Native media hardening for the 12.4 test fork. GPL-2.0-or-later.
++using System;
++using System.Collections.Generic;
++using System.IO;
++using System.Linq;
++using System.Text.Json;
++using System.Text.Json.Nodes;
++using System.Threading.Tasks;
++using MediaBrowser.Model.Dto;
++using MediaBrowser.Model.Entities;
++using MediaBrowser.Model.Querying;
++using MediaBrowser.Model.Search;
++using Microsoft.AspNetCore.Mvc;
++using Microsoft.AspNetCore.Mvc.Controllers;
++using Microsoft.AspNetCore.Mvc.Filters;
++using Microsoft.Extensions.Options;
++
++namespace Jellyfin.Api.Security;
++
++/// <summary>Adapt per-response image tags, without mutating native library DTOs.</summary>
++internal sealed class AndroidTvImageFilter(ImageGrantProtector grants, IOptions<JsonOptions> json, IOptionsMonitor<SecureMediaOptions> secureOptions) : IAsyncResultFilter
++{
++    public async Task OnResultExecutionAsync(ResultExecutingContext context, ResultExecutionDelegate next)
++    {
++        var http = context.HttpContext;
++        var user = http.User;
++        var config = secureOptions.CurrentValue;
++        var client = user.FindFirst("Jellyfin-Client")?.Value;
++        var device = user.FindFirst("Jellyfin-DeviceId")?.Value;
++        var token = user.FindFirst("Jellyfin-Token")?.Value;
++        if (config?.EnableAndroidTvImageCompatibility != true
++            || user.Identity?.IsAuthenticated != true
++            || !Guid.TryParse(user.FindFirst("Jellyfin-UserId")?.Value, out var userId) || userId.Equals(Guid.Empty)
++            || !(string.Equals(client, "Jellyfin Android TV", StringComparison.OrdinalIgnoreCase)
++                || string.Equals(client, "Jellyfin for Android TV", StringComparison.OrdinalIgnoreCase))
++            || user.FindFirst("Jellyfin-Version")?.Value != "0.19.10"
++            || device is not { Length: > 0 and <= 128 } || token is not { Length: > 0 and <= 512 }
++            || (!http.Request.IsHttps && !config.AllowInsecureHttpImages)
++            || (config.AndroidTvImageDeviceIds is { Length: > 0 } ids && !ids.Contains(device, StringComparer.Ordinal))
++            || context.ActionDescriptor is not ControllerActionDescriptor action
++            || action.ControllerTypeInfo.Assembly.GetName().Name != "Jellyfin.Api"
++            || context.Result is not ObjectResult { Value: not null } result
++            || result.StatusCode is >= 300 || !Supported(result.Value))
++        {
++            await next();
++            return;
++        }
++
++        // Serializing into a separate tree avoids modifying per-user or shared
++        // native DTO dictionaries and retains Jellyfin's configured JSON shape.
++        var tree = JsonSerializer.SerializeToNode(result.Value, result.Value.GetType(), json.Value.JsonSerializerOptions);
++        var nodes = 20000;
++        var remaining = 8192;
++        Visit(tree);
++        if (remaining < 8192)
++        {
++            result.Value = tree;
++            result.DeclaredType = typeof(JsonNode);
++            http.Response.Headers.CacheControl = "private, no-store";
++            http.Response.Headers["Referrer-Policy"] = "no-referrer";
++        }
++
++        await next();
++
++        void Visit(JsonNode? value)
++        {
++            if (value is null || nodes-- <= 0 || remaining <= 0)
++            {
++                return;
++            }
++
++            if (value is JsonArray array)
++            {
++                foreach (var entry in array)
++                {
++                    Visit(entry);
++                }
++
++                return;
++            }
++
++            if (value is not JsonObject obj)
++            {
++                return;
++            }
++
++            foreach (var entry in obj.ToArray())
++            {
++                Visit(entry.Value);
++            }
++
++            var id = Id(obj, "Id");
++            if (id.Equals(Guid.Empty))
++            {
++                id = Id(obj, "ItemId");
++            }
++
++            if (!id.Equals(Guid.Empty) && Property(obj, "ImageTags") is JsonObject tags)
++            {
++                foreach (var entry in tags.ToArray())
++                {
++                    if (Enum.TryParse<ImageType>(entry.Key, true, out var type) && Enum.IsDefined(type))
++                    {
++                        Replace(tags, entry.Key, obj, id, type, 0);
++                    }
++                }
++            }
++
++            ReplaceArray(obj, "BackdropImageTags", id, ImageType.Backdrop);
++            ReplaceArray(obj, "ParentBackdropImageTags", Id(obj, "ParentBackdropItemId"), ImageType.Backdrop);
++            foreach (var (field, owner, type) in new (string, string, ImageType)[]
++            {
++                ("ParentPrimaryImageTag", "ParentPrimaryImageItemId", ImageType.Primary),
++                ("ParentLogoImageTag", "ParentLogoItemId", ImageType.Logo),
++                ("ParentArtImageTag", "ParentArtItemId", ImageType.Art),
++                ("ParentThumbImageTag", "ParentThumbItemId", ImageType.Thumb),
++                ("SeriesPrimaryImageTag", "SeriesId", ImageType.Primary),
++                ("SeriesThumbImageTag", "SeriesId", ImageType.Thumb),
++                ("AlbumPrimaryImageTag", "AlbumId", ImageType.Primary),
++                ("ChannelPrimaryImageTag", "ChannelId", ImageType.Primary),
++                ("ThumbImageTag", "ThumbImageItemId", ImageType.Thumb),
++                ("BackdropImageTag", "BackdropImageItemId", ImageType.Backdrop)
++            })
++            {
++                var key = Key(obj, field);
++                if (key is not null)
++                {
++                    Replace(obj, key, obj, Id(obj, owner), type, 0);
++                }
++            }
++
++            if (Key(obj, "PrimaryImageTag") is { } primary)
++            {
++                Replace(obj, primary, obj, id, ImageType.Primary, 0);
++            }
++        }
++
++        void Replace(JsonObject owner, string key, JsonObject item, Guid id, ImageType type, int index)
++        {
++            var original = Text(owner[key]);
++            var replacement = Protect(original, id, type, index);
++            if (replacement is null)
++            {
++                return;
++            }
++
++            owner[key] = replacement;
++            CopyBlurHash(item, type, original!, replacement);
++        }
++
++        void ReplaceArray(JsonObject obj, string field, Guid id, ImageType type)
++        {
++            if (Property(obj, field) is not JsonArray tags)
++            {
++                return;
++            }
++
++            for (var i = 0; i < tags.Count && i < 1000; i++)
++            {
++                var original = Text(tags[i]);
++                var replacement = Protect(original, id, type, i);
++                if (replacement is not null)
++                {
++                    tags[i] = replacement;
++                    CopyBlurHash(obj, type, original!, replacement);
++                }
++            }
++        }
++
++        string? Protect(string? tag, Guid id, ImageType type, int index)
++        {
++            if (remaining <= 0 || id.Equals(Guid.Empty) || tag is not { Length: > 0 and <= 256 }
++                || tag.StartsWith(ImageGrantProtector.Prefix, StringComparison.Ordinal))
++            {
++                return null;
++            }
++
++            remaining--;
++            return grants.Create(userId, id, type, index, tag, token, device, config.AllowInsecureHttpImages);
++        }
++    }
++
++    private static bool Supported(object value) => value is BaseItemDto
++        || (value is QueryResult<BaseItemDto> query && query.Items.Count <= 1000)
++        || (value is SearchHintResult hints && hints.SearchHints.Count <= 1000)
++        || (value is IEnumerable<BaseItemDto> items && items.TryGetNonEnumeratedCount(out var count) && count <= 1000);
++
++    private static string? Key(JsonObject obj, string name) => obj.FirstOrDefault(p => p.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Key;
++
++    private static JsonNode? Property(JsonObject obj, string name) => Key(obj, name) is { } key ? obj[key] : null;
++
++    private static string? Text(JsonNode? value) => value is JsonValue scalar && scalar.TryGetValue<string>(out var text) ? text : null;
++
++    private static Guid Id(JsonObject obj, string name) => Guid.TryParse(Text(Property(obj, name)), out var id) ? id : Guid.Empty;
++
++    private static void CopyBlurHash(JsonObject obj, ImageType type, string original, string replacement)
++    {
++        if (Property(obj, "ImageBlurHashes") is JsonObject types && Property(types, type.ToString()) is JsonObject hashes
++            && hashes[original] is { } hash)
++        {
++            hashes[replacement] = hash.DeepClone();
++        }
++    }
++}
+--- /dev/null
++++ b/Jellyfin.Api/Security/ImageAuthenticationMiddleware.cs
+@@ -0,0 +1,147 @@
++// Native media hardening for the 12.4 test fork. GPL-2.0-or-later.
++using System;
++using System.Collections.Generic;
++using System.Globalization;
++using System.IO;
++using System.Linq;
++using System.Threading.Tasks;
++using MediaBrowser.Common.Net;
++using MediaBrowser.Controller.Configuration;
++using MediaBrowser.Model.Entities;
++using Microsoft.AspNetCore.Http;
++using Microsoft.AspNetCore.Mvc.Controllers;
++using Microsoft.Extensions.Primitives;
++
++namespace Jellyfin.Api.Security;
++
++internal sealed class ImageAuthenticationMiddleware(RequestDelegate next,
++    IServerConfigurationManager configuration, ImageSessionCookie cookies, ImageGrantProtector grants)
++{
++    public static readonly object CookieAuthentication = new();
++    public static readonly object GrantAuthentication = new();
++
++    public async Task InvokeAsync(HttpContext http)
++    {
++        // This comes from Jellyfin's saved configuration, never Host/Forwarded.
++        var prefix = (configuration.GetConfiguration("network") as NetworkConfiguration)?.BaseUrl.TrimEnd('/') ?? string.Empty;
++        var path = http.Request.Path;
++        if (prefix.Length > 0 && path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase, out var remainder))
++        {
++            path = remainder;
++        }
++        else if (prefix.Length > 0 && !http.Request.PathBase.Equals(new PathString(prefix), StringComparison.OrdinalIgnoreCase))
++        {
++            await next(http);
++            return;
++        }
++
++        var segments = (path.Value ?? string.Empty).Split('/', StringSplitOptions.RemoveEmptyEntries);
++        var image = (HttpMethods.IsGet(http.Request.Method) || HttpMethods.IsHead(http.Request.Method))
++            && segments.Length >= 4 && segments[2].Equals("Images", StringComparison.OrdinalIgnoreCase)
++            && new[] { "Items", "Artists", "Genres", "MusicGenres", "Persons", "Studios" }
++                .Contains(segments[0], StringComparer.OrdinalIgnoreCase);
++        var explicitCredentials = http.Request.Headers.ContainsKey("Authorization")
++            || http.Request.Headers.ContainsKey("X-Emby-Authorization")
++            || http.Request.Headers.ContainsKey("X-Emby-Token")
++            || http.Request.Headers.ContainsKey("X-MediaBrowser-Token")
++            || http.Request.Query.Keys.Any(key => key.Equals("api_key", StringComparison.OrdinalIgnoreCase)
++                || key.Equals("ApiKey", StringComparison.OrdinalIgnoreCase));
++
++        if (image && !explicitCredentials && segments.Length is 4 or 5
++            && segments[0].Equals("Items", StringComparison.OrdinalIgnoreCase)
++            && Guid.TryParse(segments[1], out var itemId)
++            && Enum.TryParse<ImageType>(segments[3], true, out var type) && Enum.IsDefined(type)
++            && TryImageIndex(segments, http.Request.Query, out var imageIndex)
++            && !http.Request.Query.Keys.Any(key => new[] { "itemId", "routeItemId", "imageType" }.Contains(key, StringComparer.OrdinalIgnoreCase))
++            && http.Request.Query.TryGetValue("tag", out var tags) && tags.Count == 1
++            && grants.TryRead(tags[0], out var grant) && grant is not null
++            && grant.ItemId.Equals(itemId) && grant.Type == type
++            && grant.Index == imageIndex)
++        {
++            // Only an exact image scope can recover the native session token.
++            // Native authentication and the image rights filter still run.
++            http.Items[GrantAuthentication] = grant;
++            http.Request.Headers.Authorization = "MediaBrowser Token=\"" + grant.Token + "\"";
++            var query = http.Request.Query.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
++            query["tag"] = new StringValues(grant.OriginalTag);
++            http.Request.Query = new QueryCollection(query);
++        }
++        else if (image && !explicitCredentials && cookies.TryRead(http.Request.Cookies[cookies.Name], out var token))
++        {
++            http.Items[CookieAuthentication] = true;
++            http.Request.Headers.Authorization = "MediaBrowser Token=\"" + token + "\"";
++        }
++
++        http.Response.OnStarting(() =>
++        {
++            if (image)
++            {
++                // Override native public image caching after the file action
++                // sets its headers. Also applies to 401/403/304 responses.
++                http.Response.Headers.CacheControl = "private, no-store";
++                http.Response.Headers.Pragma = "no-cache";
++                http.Response.Headers.Expires = "0";
++                var vary = http.Response.Headers.Vary.ToString();
++                http.Response.Headers.Vary = string.IsNullOrEmpty(vary) ? "Authorization, Cookie" : vary + ", Authorization, Cookie";
++            }
++
++            var options = new CookieOptions
++            {
++                HttpOnly = true,
++                Secure = true,
++                SameSite = SameSiteMode.Strict,
++                Path = prefix + "/",
++                MaxAge = ImageSessionCookie.Lifetime,
++                IsEssential = true
++            };
++            if (path.Equals(new PathString("/Sessions/Logout"), StringComparison.OrdinalIgnoreCase) && http.Response.StatusCode is >= 200 and < 300)
++            {
++                http.Response.Cookies.Delete(cookies.Name, options);
++                return Task.CompletedTask;
++            }
++
++            // HTTPS is evaluated here, after Jellyfin processed trusted proxy
++            // headers. Never issue this credential over internal plain HTTP.
++            if (!image && explicitCredentials && http.Request.IsHttps
++                && http.Response.StatusCode is >= 200 and < 300
++                && http.GetEndpoint()?.Metadata.GetMetadata<ControllerActionDescriptor>() is { } action
++                && action.ControllerTypeInfo.Assembly.GetName().Name == "Jellyfin.Api"
++                && http.User.Identity?.IsAuthenticated == true
++                && Guid.TryParse(http.User.FindFirst("Jellyfin-UserId")?.Value, out var userId) && !userId.Equals(Guid.Empty)
++                && http.User.FindFirst("Jellyfin-Token")?.Value is { Length: > 0 and <= 512 } currentToken)
++            {
++                http.Response.Cookies.Append(cookies.Name, cookies.Create(currentToken), options);
++                http.Response.Headers.CacheControl = "no-store";
++            }
++
++            return Task.CompletedTask;
++        });
++
++        await next(http);
++    }
++
++    private static bool TryImageIndex(string[] segments, IQueryCollection query, out int index)
++    {
++        index = 0;
++        if (segments.Length == 5 && (!int.TryParse(segments[4], NumberStyles.None, CultureInfo.InvariantCulture, out index)
++            || index is < 0 or > 999))
++        {
++            return false;
++        }
++
++        // The 0.19.10 SDK passes Backdrop indexes in the query, not the route.
++        // Authorize that effective index; reject ambiguity on indexed routes.
++        if (query.TryGetValue("imageIndex", out var values))
++        {
++            if (values.Count != 1 || !int.TryParse(values[0], NumberStyles.None, CultureInfo.InvariantCulture, out var requested)
++                || requested is < 0 or > 999 || (segments.Length == 5 && requested != index))
++            {
++                return false;
++            }
++
++            index = requested;
++        }
++
++        return true;
++    }
++}
+--- /dev/null
++++ b/Jellyfin.Api/Security/ImageAuthenticationStartupFilter.cs
+@@ -0,0 +1,21 @@
++// Native media hardening for the 12.4 test fork. GPL-2.0-or-later.
++using System;
++using System.Collections.Generic;
++using System.IO;
++using System.Linq;
++using System.Threading.Tasks;
++using Microsoft.AspNetCore.Builder;
++using Microsoft.AspNetCore.Hosting;
++
++namespace Jellyfin.Api.Security;
++
++internal sealed class ImageAuthenticationStartupFilter : IStartupFilter
++{
++    public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
++    {
++        // Before native authentication: no reimplementation of its validation,
++        // revocation, disabled-account or claims handling is necessary.
++        app.UseMiddleware<ImageAuthenticationMiddleware>();
++        next(app);
++    };
++}
+--- /dev/null
++++ b/Jellyfin.Api/Security/ImageAuthorizationFilter.cs
+@@ -0,0 +1,125 @@
++// Native media hardening for the 12.4 test fork. GPL-2.0-or-later.
++using System;
++using System.Collections.Generic;
++using System.IO;
++using System.Linq;
++using System.Threading.Tasks;
++using MediaBrowser.Controller.Entities;
++using MediaBrowser.Controller.Library;
++using Microsoft.AspNetCore.Authorization;
++using Microsoft.AspNetCore.Mvc;
++using Microsoft.AspNetCore.Mvc.Controllers;
++using Microsoft.AspNetCore.Mvc.Filters;
++using Microsoft.Extensions.Options;
++
++namespace Jellyfin.Api.Security;
++
++internal sealed class ImageAuthorizationFilter(IAuthorizationPolicyProvider policies,
++    IAuthorizationService authorization, ILibraryManager library, IUserManager users, IOptionsMonitor<SecureMediaOptions> secureOptions) : IAsyncAuthorizationFilter
++{
++    private static readonly HashSet<string> ImageActions = new(StringComparer.Ordinal)
++    {
++        "GetItemImage", "GetItemImageByIndex", "GetItemImage2", "GetArtistImage",
++        "GetGenreImage", "GetGenreImageByIndex", "GetMusicGenreImage", "GetMusicGenreImageByIndex",
++        "GetPersonImage", "GetPersonImageByIndex", "GetStudioImage", "GetStudioImageByIndex"
++    };
++
++    public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
++    {
++        if (context.ActionDescriptor is not ControllerActionDescriptor action
++            || action.ControllerTypeInfo.Assembly.GetName().Name != "Jellyfin.Api"
++            || action.ControllerName != "Image" || !ImageActions.Contains(action.ActionName))
++        {
++            return;
++        }
++
++        var http = context.HttpContext;
++        http.Response.Headers.CacheControl = "private, no-store";
++        if (http.User.Identity?.IsAuthenticated != true
++            || (http.Items.ContainsKey(ImageAuthenticationMiddleware.CookieAuthentication) && !http.Request.IsHttps))
++        {
++            context.Result = new UnauthorizedResult();
++            return;
++        }
++
++        var policy = await policies.GetDefaultPolicyAsync().ConfigureAwait(false);
++        if (!(await authorization.AuthorizeAsync(http.User, http, policy).ConfigureAwait(false)).Succeeded)
++        {
++            context.Result = new ForbidResult();
++            return;
++        }
++
++        if (!Guid.TryParse(http.User.FindFirst("Jellyfin-UserId")?.Value, out var userId) || userId.Equals(Guid.Empty)
++            || users.GetUserById(userId) is not { } user)
++        {
++            context.Result = new ForbidResult();
++            return;
++        }
++
++        // Forwarded HTTPS has now been processed by Jellyfin. A private IP or
++        // arbitrary Forwarded header never enables unencrypted image grants.
++        if (http.Items.TryGetValue(ImageAuthenticationMiddleware.GrantAuthentication, out var accepted)
++            && accepted is ImageGrantProtector.Grant grant
++            && (!grant.UserId.Equals(userId) || secureOptions.CurrentValue is not { EnableAndroidTvImageCompatibility: true } config
++                || (!http.Request.IsHttps && (!grant.AllowHttp || !config.AllowInsecureHttpImages))
++                || (config.AndroidTvImageDeviceIds is { Length: > 0 } ids && !ids.Contains(grant.DeviceId, StringComparer.Ordinal))))
++        {
++            context.Result = new UnauthorizedResult();
++            return;
++        }
++
++        BaseItem? item;
++        if (http.Request.RouteValues["itemId"]?.ToString() is { } raw)
++        {
++            if (!Guid.TryParse(raw, out var id) || id.Equals(Guid.Empty))
++            {
++                context.Result = new BadRequestResult();
++                return;
++            }
++
++            item = library.GetItemById(id);
++        }
++        else
++        {
++            var name = http.Request.RouteValues["name"]?.ToString();
++            if (string.IsNullOrEmpty(name))
++            {
++                context.Result = new BadRequestResult();
++                return;
++            }
++
++            item = action.ActionName switch
++            {
++                "GetArtistImage" => library.GetArtist(name),
++                "GetGenreImage" or "GetGenreImageByIndex" => library.GetGenre(name),
++                "GetMusicGenreImage" or "GetMusicGenreImageByIndex" => library.GetMusicGenre(name),
++                "GetPersonImage" or "GetPersonImageByIndex" => library.GetPerson(name),
++                "GetStudioImage" or "GetStudioImageByIndex" => library.GetStudio(name),
++                _ => null
++            };
++        }
++
++        if (item is null)
++        {
++            context.Result = new NotFoundResult();
++            return;
++        }
++
++        if (!item.IsVisibleStandalone(user))
++        {
++            context.Result = new ForbidResult();
++            return;
++        }
++
++        // By-name objects have no normal collection parent. Require at least
++        // one tagged item from this user's visible library, including when the
++        // same artist/genre/person/studio image is reached through its itemId.
++        if (item is IItemByName named && !named.GetTaggedItems(new InternalItemsQuery(user)
++        { Recursive = true, Limit = 1 }).Any(tagged => tagged.IsVisibleStandalone(user)))
++        {
++            context.Result = new ForbidResult();
++        }
++
++        // Viewing a permitted cover does not require permission to play media.
++    }
++}
+--- /dev/null
++++ b/Jellyfin.Api/Security/ImageGrantProtector.cs
+@@ -0,0 +1,103 @@
++// Native media hardening for the 12.4 test fork. GPL-2.0-or-later.
++using System;
++using System.Collections.Generic;
++using System.IO;
++using System.Linq;
++using System.Security.Cryptography;
++using System.Text;
++using System.Text.Json;
++using System.Threading.Tasks;
++using MediaBrowser.Model.Entities;
++using Microsoft.AspNetCore.WebUtilities;
++
++namespace Jellyfin.Api.Security;
++
++/// <summary>Opaque, short-lived authorization for one image; not a Jellyfin API token.</summary>
++internal sealed class ImageGrantProtector(TimeProvider clock)
++{
++    public const string Prefix = "mag5_";
++    public static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(10);
++    private readonly byte[] _key = RandomNumberGenerator.GetBytes(32);
++    private static readonly byte[] Purpose = Encoding.UTF8.GetBytes("MediaAccessGuard.SingleImage.v1");
++
++    public string Create(Guid userId, Guid itemId, ImageType type, int index, string tag, string token, string deviceId, bool allowHttp)
++    {
++        if (userId.Equals(Guid.Empty) || itemId.Equals(Guid.Empty) || !Enum.IsDefined(type)
++            || index is < 0 or > 999 || tag.Length is 0 or > 256
++            || deviceId.Length is 0 or > 128 || !ValidToken(token))
++        {
++            throw new ArgumentException("Invalid image grant scope.");
++        }
++
++        var grant = new Grant(userId, itemId, type, index, tag, token, deviceId, clock.GetUtcNow().Add(Lifetime).ToUnixTimeSeconds(), allowHttp);
++        var plaintext = JsonSerializer.SerializeToUtf8Bytes(grant);
++        var output = new byte[28 + plaintext.Length];
++        RandomNumberGenerator.Fill(output.AsSpan(0, 12));
++        try
++        {
++            using var cipher = new AesGcm(_key, 16);
++            cipher.Encrypt(output.AsSpan(0, 12), plaintext, output.AsSpan(28), output.AsSpan(12, 16), Purpose);
++            return Prefix + WebEncoders.Base64UrlEncode(output);
++        }
++        finally
++        {
++            CryptographicOperations.ZeroMemory(plaintext);
++        }
++    }
++
++    public bool TryRead(string? value, out Grant? grant)
++    {
++        grant = null;
++        if (value is null || !value.StartsWith(Prefix, StringComparison.Ordinal) || value.Length > 2048)
++        {
++            return false;
++        }
++
++        byte[]? plaintext = null;
++        try
++        {
++            var bytes = WebEncoders.Base64UrlDecode(value[Prefix.Length..]);
++            if (bytes.Length < 29)
++            {
++                return false;
++            }
++
++            plaintext = new byte[bytes.Length - 28];
++            using var cipher = new AesGcm(_key, 16);
++            cipher.Decrypt(bytes.AsSpan(0, 12), bytes.AsSpan(28), bytes.AsSpan(12, 16), plaintext, Purpose);
++            var decoded = JsonSerializer.Deserialize<Grant>(plaintext);
++            var now = clock.GetUtcNow().ToUnixTimeSeconds();
++            if (decoded is null || decoded.UserId.Equals(Guid.Empty) || decoded.ItemId.Equals(Guid.Empty)
++                || !Enum.IsDefined(decoded.Type) || decoded.Index is < 0 or > 999
++                || decoded.Expires <= now || decoded.Expires > now + (long)Lifetime.TotalSeconds
++                || decoded.DeviceId is not { Length: > 0 and <= 128 }
++                || decoded.OriginalTag is not { Length: > 0 and <= 256 } || !ValidToken(decoded.Token))
++            {
++                return false;
++            }
++
++            grant = decoded;
++            return true;
++        }
++        catch (Exception error) when (error is FormatException or CryptographicException or ArgumentException or JsonException)
++        {
++            return false;
++        }
++        finally
++        {
++            if (plaintext is not null)
++            {
++                CryptographicOperations.ZeroMemory(plaintext);
++            }
++        }
++    }
++
++    private static bool ValidToken(string? token) => token is { Length: > 0 and <= 512 }
++        && !token.Any(c => c is '\r' or '\n' or '"' or '\\');
++
++    public sealed record Grant(Guid UserId, Guid ItemId, ImageType Type, int Index,
++        string OriginalTag, string Token, string DeviceId, long Expires, bool AllowHttp)
++    {
++        public override string ToString() => "Scoped image capability";
++    }
++}
+--- /dev/null
++++ b/Jellyfin.Api/Security/ImageSessionCookie.cs
+@@ -0,0 +1,90 @@
++// Native media hardening for the 12.4 test fork. GPL-2.0-or-later.
++using System;
++using System.Buffers.Binary;
++using System.Collections.Generic;
++using System.IO;
++using System.Linq;
++using System.Security.Cryptography;
++using System.Text;
++using System.Threading.Tasks;
++using Microsoft.AspNetCore.WebUtilities;
++
++namespace Jellyfin.Api.Security;
++
++/// <summary>
++/// Opaque five-minute image-only credential, never accepted as a Jellyfin token.
++/// The process-local key deliberately invalidates cookies on a server restart.
++/// The enclosed native token is decrypted in memory only, then revalidated by
++/// Jellyfin's own authentication handler on every image request.
++/// </summary>
++internal sealed class ImageSessionCookie(string serverId, TimeProvider clock)
++{
++    public static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(5);
++    private readonly byte[] _key = RandomNumberGenerator.GetBytes(32);
++    private static readonly byte[] Purpose = Encoding.UTF8.GetBytes("MediaAccessGuard.Images.v1");
++
++    public string Name { get; } = "__Secure-JellyfinImages-" +
++        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(serverId)))[..12];
++
++    public string Create(string token)
++    {
++        var plaintext = new byte[8 + Encoding.UTF8.GetByteCount(token)];
++        BinaryPrimitives.WriteInt64BigEndian(plaintext, clock.GetUtcNow().Add(Lifetime).ToUnixTimeSeconds());
++        Encoding.UTF8.GetBytes(token, plaintext.AsSpan(8));
++        var output = new byte[12 + 16 + plaintext.Length];
++        RandomNumberGenerator.Fill(output.AsSpan(0, 12));
++        try
++        {
++            using var cipher = new AesGcm(_key, 16);
++            cipher.Encrypt(output.AsSpan(0, 12), plaintext, output.AsSpan(28), output.AsSpan(12, 16), Purpose);
++            return WebEncoders.Base64UrlEncode(output);
++        }
++        finally
++        {
++            CryptographicOperations.ZeroMemory(plaintext);
++        }
++    }
++
++    public bool TryRead(string? value, out string token)
++    {
++        token = string.Empty;
++        if (string.IsNullOrEmpty(value) || value.Length > 2048)
++        {
++            return false;
++        }
++
++        byte[]? plaintext = null;
++        try
++        {
++            var bytes = WebEncoders.Base64UrlDecode(value);
++            if (bytes.Length < 37)
++            {
++                return false;
++            }
++
++            plaintext = new byte[bytes.Length - 28];
++            using var cipher = new AesGcm(_key, 16);
++            cipher.Decrypt(bytes.AsSpan(0, 12), bytes.AsSpan(28), bytes.AsSpan(12, 16), plaintext, Purpose);
++            var expiry = BinaryPrimitives.ReadInt64BigEndian(plaintext);
++            var now = clock.GetUtcNow().ToUnixTimeSeconds();
++            if (expiry <= now || expiry > now + (long)Lifetime.TotalSeconds)
++            {
++                return false;
++            }
++
++            token = Encoding.UTF8.GetString(plaintext.AsSpan(8));
++            return token.Length is > 0 and <= 512 && !token.Any(c => c is '\r' or '\n' or '"' or '\\');
++        }
++        catch (Exception error) when (error is FormatException or CryptographicException or ArgumentException)
++        {
++            return false;
++        }
++        finally
++        {
++            if (plaintext is not null)
++            {
++                CryptographicOperations.ZeroMemory(plaintext);
++            }
++        }
++    }
++}
+--- /dev/null
++++ b/Jellyfin.Api/Security/ImageWebMiddleware.cs
+@@ -0,0 +1,92 @@
++// Native media hardening for the 12.4 test fork. GPL-2.0-or-later.
++using System;
++using System.Collections.Generic;
++using System.IO;
++using System.Linq;
++using System.Net;
++using System.Text;
++using System.Threading.Tasks;
++using MediaBrowser.Common.Net;
++using MediaBrowser.Controller.Configuration;
++using Microsoft.AspNetCore.Http;
++using Microsoft.AspNetCore.Http.Features;
++
++namespace Jellyfin.Api.Security;
++
++/// <summary>Same-origin browser adapter; never transforms media/API documents.</summary>
++internal sealed class ImageWebMiddleware(RequestDelegate next, IServerConfigurationManager configuration)
++{
++    public async Task InvokeAsync(HttpContext http)
++    {
++        var prefix = (configuration.GetConfiguration("network") as NetworkConfiguration)?.BaseUrl.TrimEnd('/') ?? string.Empty;
++        var path = http.Request.Path;
++        if (prefix.Length > 0 && path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase, out var rest))
++        {
++            path = rest;
++        }
++        else if (prefix.Length > 0 && !http.Request.PathBase.Equals(new PathString(prefix), StringComparison.OrdinalIgnoreCase))
++        {
++            await next(http);
++            return;
++        }
++
++        if (path.Equals(new PathString("/MediaSecurity/image-client.js"), StringComparison.OrdinalIgnoreCase)
++            && (HttpMethods.IsGet(http.Request.Method) || HttpMethods.IsHead(http.Request.Method)))
++        {
++            http.Response.ContentType = "application/javascript; charset=utf-8";
++            http.Response.Headers.CacheControl = "no-cache";
++            http.Response.Headers["X-Content-Type-Options"] = "nosniff";
++            if (HttpMethods.IsGet(http.Request.Method))
++            {
++                using var source = typeof(ImageWebMiddleware).Assembly.GetManifestResourceStream("Jellyfin.Api.Security.Web.image-client.js")!;
++                await source.CopyToAsync(http.Response.Body, http.RequestAborted).ConfigureAwait(false);
++            }
++
++            return;
++        }
++
++        if (!HttpMethods.IsGet(http.Request.Method)
++            || !(path.Equals(new PathString("/web/index.html"), StringComparison.OrdinalIgnoreCase) || path.Equals(new PathString("/web/"), StringComparison.OrdinalIgnoreCase)))
++        {
++            await next(http);
++            return;
++        }
++
++        http.Request.Headers.Remove("Accept-Encoding");
++        http.Request.Headers.Remove("If-None-Match");
++        http.Request.Headers.Remove("If-Modified-Since");
++        var original = http.Features.Get<IHttpResponseBodyFeature>();
++        using var buffer = new MemoryStream();
++        http.Features.Set<IHttpResponseBodyFeature>(new StreamResponseBodyFeature(buffer));
++        try
++        {
++            await next(http).ConfigureAwait(false);
++        }
++        finally
++        {
++            http.Features.Set(original);
++        }
++
++        var bytes = buffer.ToArray();
++        if (http.Response.StatusCode == 200 && bytes.Length < 1048576
++            && http.Response.ContentType?.StartsWith("text/html", StringComparison.OrdinalIgnoreCase) == true)
++        {
++            var html = Encoding.UTF8.GetString(bytes);
++            var start = html.IndexOf("<head", StringComparison.OrdinalIgnoreCase);
++            var head = start >= 0 ? html.IndexOf('>', start) : -1;
++            if (head >= 0 && !html.Contains("id=\"media-access-guard-image-client\"", StringComparison.Ordinal))
++            {
++                var script = "<script id=\"media-access-guard-image-client\" src=\"" +
++                    WebUtility.HtmlEncode(prefix + "/MediaSecurity/image-client.js?v=12.4-secure1") + "\"></script>";
++                bytes = Encoding.UTF8.GetBytes(html.Insert(head + 1, script));
++                http.Response.Headers.Remove("ETag");
++                http.Response.Headers.Remove("Last-Modified");
++                http.Response.Headers.Remove("Content-Encoding");
++                http.Response.Headers.CacheControl = "no-store";
++            }
++        }
++
++        http.Response.ContentLength = bytes.Length;
++        await http.Response.Body.WriteAsync(bytes, http.RequestAborted).ConfigureAwait(false);
++    }
++}
+--- /dev/null
++++ b/Jellyfin.Api/Security/ImageWebStartupFilter.cs
+@@ -0,0 +1,19 @@
++// Native media hardening for the 12.4 test fork. GPL-2.0-or-later.
++using System;
++using System.Collections.Generic;
++using System.IO;
++using System.Linq;
++using System.Threading.Tasks;
++using Microsoft.AspNetCore.Builder;
++using Microsoft.AspNetCore.Hosting;
++
++namespace Jellyfin.Api.Security;
++
++internal sealed class ImageWebStartupFilter : IStartupFilter
++{
++    public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
++    {
++        app.UseMiddleware<ImageWebMiddleware>();
++        next(app);
++    };
++}
+--- /dev/null
++++ b/Jellyfin.Api/Security/MediaAuthorizationFilter.cs
+@@ -0,0 +1,143 @@
++// Native media hardening for the 12.4 test fork. GPL-2.0-or-later.
++using System;
++using System.Collections.Generic;
++using System.IO;
++using System.Linq;
++using System.Threading.Tasks;
++using MediaBrowser.Controller.Library;
++using MediaBrowser.Model.Library;
++using Microsoft.AspNetCore.Authorization;
++using Microsoft.AspNetCore.Mvc;
++using Microsoft.AspNetCore.Mvc.Controllers;
++using Microsoft.AspNetCore.Mvc.Filters;
++
++namespace Jellyfin.Api.Security;
++
++/// <summary>
++/// Runs inside MVC after Jellyfin's authentication and forwarded-header middleware.
++/// Scope uses the resolved action, so aliases, extensions, HEAD, BaseUrl and casing
++/// cannot sidestep a textual URL pattern. Existing authorization remains in place.
++/// </summary>
++internal sealed class MediaAuthorizationFilter(
++    IAuthorizationPolicyProvider policyProvider,
++    IAuthorizationService authorization,
++    ILibraryManager library,
++    IUserManager users,
++    IMediaSourceManager sources) : IAsyncAuthorizationFilter
++{
++    private static readonly HashSet<string> MediaControllers = new(StringComparer.Ordinal)
++    {
++        "Videos", "Audio", "UniversalAudio", "DynamicHls", "HlsSegment",
++        "Subtitle", "VideoAttachments", "Trickplay", "Lyrics"
++    };
++
++    public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
++    {
++        if (context.ActionDescriptor is not ControllerActionDescriptor action
++            || action.ControllerTypeInfo.Assembly.GetName().Name != "Jellyfin.Api"
++            || !(MediaControllers.Contains(action.ControllerName)
++                || (action.ControllerName == "Library" && action.ActionName is "GetFile" or "GetDownload")
++                || (action.ControllerName == "MediaInfo" && action.ActionName is "GetPlaybackInfo" or "GetPostedPlaybackInfo")
++                || (action.ControllerName == "LiveTv" && action.ActionName is "GetLiveRecordingFile" or "GetLiveStreamFile")))
++        {
++            return;
++        }
++
++        var http = context.HttpContext;
++        http.Response.Headers.CacheControl = "no-store";
++        if (http.User.Identity?.IsAuthenticated != true)
++        {
++            context.Result = new UnauthorizedResult();
++            return;
++        }
++
++        // Jellyfin's handler has already checked token validity and disabled
++        // accounts. Apply its default policy as well (remote access/schedules).
++        var policy = await policyProvider.GetDefaultPolicyAsync().ConfigureAwait(false);
++        var result = await authorization.AuthorizeAsync(http.User, http, policy).ConfigureAwait(false);
++        if (!result.Succeeded)
++        {
++            context.Result = new ForbidResult();
++            return;
++        }
++
++        // A library authorization decision requires a personal user. An
++        // application API key without a user is not a media-library grant.
++        if (!Guid.TryParse(http.User.FindFirst("Jellyfin-UserId")?.Value, out var userId)
++            || userId.Equals(Guid.Empty) || users.GetUserById(userId) is not { } user)
++        {
++            context.Result = new ForbidResult();
++            return;
++        }
++
++        // These old raw-file routes ignore itemId when selecting a cached
++        // transcode or live stream. A claimed, permitted item is insufficient
++        // evidence of ownership of that file. Until a trustworthy association
++        // is available they fail closed; modern hls1 routes remain supported.
++        if (action.ControllerName == "LiveTv"
++            || (action.ControllerName == "HlsSegment" && action.ActionName is
++                "GetHlsVideoSegmentLegacy" or "GetHlsAudioSegmentLegacy" or "GetHlsPlaylistLegacy"))
++        {
++            context.Result = new ForbidResult();
++            return;
++        }
++
++        var subtitleOverrides = action.ControllerName == "Subtitle"
++            && action.ActionName is "GetSubtitle" or "GetSubtitleWithTicks";
++        // Subtitle's legacy action explicitly lets query values override the
++        // routeItemId / routeMediaSourceId defaults. Authorize the effective
++        // values that the action uses, never an unrelated permitted route ID.
++        var rawId = subtitleOverrides ? http.Request.Query["itemId"].ToString() : null;
++        if (string.IsNullOrEmpty(rawId))
++        {
++            rawId = http.Request.RouteValues["itemId"]?.ToString()
++            ?? http.Request.RouteValues["videoId"]?.ToString()
++            ?? http.Request.RouteValues["routeItemId"]?.ToString();
++        }
++
++        if (rawId is null)
++        {
++            return; // Non-file actions retain their native policy.
++        }
++
++        if (!Guid.TryParse(rawId, out var itemId) || itemId.Equals(Guid.Empty))
++        {
++            context.Result = new BadRequestResult();
++            return;
++        }
++
++        var item = library.GetItemById(itemId);
++        if (item is null)
++        {
++            context.Result = new NotFoundResult();
++            return;
++        }
++
++        if (!item.IsVisibleStandalone(user) || item.GetPlayAccess(user) == PlayAccess.None)
++        {
++            context.Result = new ForbidResult();
++            return;
++        }
++
++        var sourceId = subtitleOverrides ? http.Request.Query["mediaSourceId"].ToString() : null;
++        if (string.IsNullOrEmpty(sourceId))
++        {
++            sourceId = http.Request.RouteValues["mediaSourceId"]?.ToString()
++            ?? http.Request.RouteValues["routeMediaSourceId"]?.ToString();
++        }
++
++        if (string.IsNullOrEmpty(sourceId))
++        {
++            sourceId = http.Request.Query["MediaSourceId"].ToString();
++        }
++
++        if (!string.IsNullOrEmpty(sourceId))
++        {
++            var allowedSources = await sources.GetPlaybackMediaSources(item, user, false, false, http.RequestAborted).ConfigureAwait(false);
++            if (!allowedSources.Any(source => string.Equals(source.Id, sourceId, StringComparison.OrdinalIgnoreCase)))
++            {
++                context.Result = new ForbidResult();
++            }
++        }
++    }
++}
+--- /dev/null
++++ b/Jellyfin.Api/Security/NativeMediaSecurityExtensions.cs
+@@ -0,0 +1,52 @@
++using System;
++using Microsoft.AspNetCore.Builder;
++using Microsoft.AspNetCore.Hosting;
++using Microsoft.AspNetCore.Mvc;
++using Microsoft.Extensions.Configuration;
++using Microsoft.Extensions.DependencyInjection;
++
++namespace Jellyfin.Api.Security;
++
++/// <summary>Registers the native, mandatory media authentication of this fork.</summary>
++public static class NativeMediaSecurityExtensions
++{
++    /// <summary>Registers image/media authorization and bounded TV capabilities.</summary>
++    /// <param name="services">Application services.</param>
++    /// <param name="configuration">Trusted server configuration.</param>
++    /// <param name="serverId">Identifier for the image-only cookie namespace.</param>
++    /// <returns>The service collection.</returns>
++    public static IServiceCollection AddNativeMediaSecurity(
++        this IServiceCollection services,
++        IConfiguration configuration,
++        string serverId)
++    {
++        services.Configure<SecureMediaOptions>(configuration.GetSection("SecureMedia"));
++        services.AddSingleton<TimeProvider>(TimeProvider.System);
++        services.AddSingleton<SecurePlaybackGrantStore>();
++        services.AddSingleton(provider => new ImageGrantProtector(provider.GetRequiredService<TimeProvider>()));
++        services.AddSingleton(provider => new ImageSessionCookie(serverId, provider.GetRequiredService<TimeProvider>()));
++        services.AddScoped<MediaAuthorizationFilter>();
++        services.AddScoped<ImageAuthorizationFilter>();
++        services.AddScoped<SecurePlaybackGrantBindingFilter>();
++        services.AddScoped<SecureAndroidTvDirectPlayFilter>();
++        services.AddScoped<AndroidTvImageFilter>();
++        services.AddTransient<IStartupFilter, ImageAuthenticationStartupFilter>();
++        services.AddTransient<IStartupFilter, NativeSecurityHeadersStartupFilter>();
++        services.Insert(0, ServiceDescriptor.Transient<IStartupFilter, ImageWebStartupFilter>());
++        services.Configure<MvcOptions>(options =>
++        {
++            options.Filters.AddService<SecurePlaybackGrantBindingFilter>(int.MinValue);
++            options.Filters.AddService<MediaAuthorizationFilter>(int.MinValue);
++            options.Filters.AddService<ImageAuthorizationFilter>(int.MinValue);
++            options.Filters.AddService<SecureAndroidTvDirectPlayFilter>();
++            options.Filters.AddService<AndroidTvImageFilter>();
++        });
++        return services;
++    }
++
++    /// <summary>Resolves limited playback capabilities before native authentication.</summary>
++    /// <param name="app">The application pipeline inside its configured base path.</param>
++    /// <returns>The application builder.</returns>
++    public static IApplicationBuilder UseNativeMediaCapabilities(this IApplicationBuilder app)
++        => app.UseMiddleware<SecurePlaybackGrantMiddleware>();
++}
+--- /dev/null
++++ b/Jellyfin.Api/Security/NativeSecurityHeadersStartupFilter.cs
+@@ -0,0 +1,29 @@
++using System;
++using System.Collections.Generic;
++using System.Threading.Tasks;
++using Microsoft.AspNetCore.Builder;
++using Microsoft.AspNetCore.Hosting;
++
++namespace Jellyfin.Api.Security;
++
++internal sealed class NativeSecurityHeadersStartupFilter : IStartupFilter
++{
++    public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
++    {
++        app.Use(async (http, continuation) =>
++        {
++            http.Response.OnStarting(() =>
++            {
++                var headers = http.Response.Headers;
++                headers.TryAdd("X-Jellyfin-Media-Security", "native-preview-1");
++                headers.TryAdd("X-Content-Type-Options", "nosniff");
++                headers.TryAdd("X-Frame-Options", "SAMEORIGIN");
++                headers.TryAdd("Referrer-Policy", "strict-origin-when-cross-origin");
++                headers.TryAdd("Content-Security-Policy", "frame-ancestors 'self'; object-src 'none'; base-uri 'self'");
++                return Task.CompletedTask;
++            });
++            await continuation(http).ConfigureAwait(false);
++        });
++        next(app);
++    };
++}
+--- /dev/null
++++ b/Jellyfin.Api/Security/SecureAndroidTvDirectPlayFilter.cs
+@@ -0,0 +1,120 @@
++using System;
++using System.Collections.Generic;
++using System.Linq;
++using System.Threading.Tasks;
++using MediaBrowser.Controller.Configuration;
++using MediaBrowser.Controller.Entities;
++using MediaBrowser.Controller.Library;
++using MediaBrowser.Model.Entities;
++using MediaBrowser.Model.MediaInfo;
++using MediaBrowser.Model.Session;
++using Microsoft.AspNetCore.Mvc;
++using Microsoft.AspNetCore.Mvc.Controllers;
++using Microsoft.AspNetCore.Mvc.Filters;
++using Microsoft.AspNetCore.Mvc.Infrastructure;
++using Microsoft.AspNetCore.WebUtilities;
++using Microsoft.Extensions.Options;
++
++namespace Jellyfin.Api.Security;
++
++/// <summary>
++/// Keep native negotiation intact. An already supported Direct Play source gets
++/// a single-resource capability for the legacy TV client, not a session token.
++/// </summary>
++internal sealed class SecureAndroidTvDirectPlayFilter(SecurePlaybackGrantStore grants,
++    IOptionsMonitor<SecureMediaOptions> options, ILibraryManager library) : IAsyncResultFilter, IAsyncActionFilter
++{
++    public async Task OnResultExecutionAsync(ResultExecutingContext context, ResultExecutionDelegate next)
++    {
++        var http = context.HttpContext;
++        var user = http.User;
++        var configuration = options.CurrentValue;
++        var client = user.FindFirst("Jellyfin-Client")?.Value;
++        var device = user.FindFirst("Jellyfin-DeviceId")?.Value;
++        if (!configuration.EnableAndroidTvDirectPlay || !configuration.TryGetPlaybackBase(out var baseUri)
++            || baseUri is null || (!http.Request.IsHttps && !configuration.AllowInsecureHttpPlayback)
++            || context.ActionDescriptor is not ControllerActionDescriptor action
++            || action.ControllerTypeInfo.Assembly.GetName().Name != "Jellyfin.Api"
++            || action.ControllerName != "MediaInfo" || action.ActionName != "GetPostedPlaybackInfo"
++            || user.Identity?.IsAuthenticated != true
++            || !Guid.TryParse(user.FindFirst("Jellyfin-UserId")?.Value, out var userId) || userId.Equals(Guid.Empty)
++            || !(string.Equals(client, "Jellyfin Android TV", StringComparison.OrdinalIgnoreCase)
++                || string.Equals(client, "Jellyfin for Android TV", StringComparison.OrdinalIgnoreCase))
++            || user.FindFirst("Jellyfin-Version")?.Value != "0.19.10"
++            || user.FindFirst("Jellyfin-Token")?.Value is not { Length: > 0 } token
++            || string.IsNullOrEmpty(device)
++            || (configuration.AndroidTvDeviceIds.Length > 0
++                && !configuration.AndroidTvDeviceIds.Contains(device, StringComparer.Ordinal))
++            || context.Result is not ObjectResult { Value: PlaybackInfoResponse info }
++            || info.ErrorCode is not null || string.IsNullOrEmpty(info.PlaySessionId)
++            || !Guid.TryParse(http.Request.RouteValues["itemId"]?.ToString(), out var itemId)
++            || library.GetItemById(itemId) is not Video)
++        {
++            await next().ConfigureAwait(false);
++            return;
++        }
++
++        foreach (var source in info.MediaSources)
++        {
++            if (!source.SupportsDirectPlay || source.IsRemote || source.Protocol != MediaProtocol.File
++                || source.IsInfiniteStream || source.RequiresOpening || string.IsNullOrEmpty(source.Id)
++                || !source.MediaStreams.Any(stream => stream.Type == MediaStreamType.Video))
++            {
++                continue;
++            }
++
++            var handle = grants.Create(userId, itemId, source.Id, info.PlaySessionId, device, token, configuration.AllowInsecureHttpPlayback && baseUri.Scheme == Uri.UriSchemeHttp);
++            if (handle is null)
++            {
++                continue;
++            }
++
++            source.Path = QueryHelpers.AddQueryString(
++                baseUri.AbsoluteUri.TrimEnd('/') + "/Videos/" + itemId.ToString("N") + "/stream",
++                new Dictionary<string, string?>
++                {
++                    ["Static"] = "true",
++                    ["MediaSourceId"] = source.Id,
++                    ["PlaySessionId"] = info.PlaySessionId,
++                    ["PlaybackGrant"] = handle,
++                });
++            source.IsRemote = true;
++            http.Response.Headers.CacheControl = "private, no-store";
++            http.Response.Headers["Referrer-Policy"] = "no-referrer";
++        }
++
++        await next().ConfigureAwait(false);
++    }
++
++    public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
++    {
++        var executed = await next().ConfigureAwait(false);
++        var http = context.HttpContext;
++        if (executed.Exception is not null || executed.Canceled
++            || executed.Result is IStatusCodeActionResult { StatusCode: >= 300 }
++            || http.Response.StatusCode >= 300
++            || context.ActionDescriptor is not ControllerActionDescriptor action
++            || action.ControllerTypeInfo.Assembly.GetName().Name != "Jellyfin.Api"
++            || action.ControllerName != "Playstate"
++            || action.ActionName is not ("ReportPlaybackStart" or "ReportPlaybackProgress" or "ReportPlaybackStopped")
++            || http.User.Identity?.IsAuthenticated != true
++            || !Guid.TryParse(http.User.FindFirst("Jellyfin-UserId")?.Value, out var userId)
++            || http.User.FindFirst("Jellyfin-Token")?.Value is not { Length: > 0 } token
++            || http.User.FindFirst("Jellyfin-DeviceId")?.Value is not { Length: > 0 } device)
++        {
++            return;
++        }
++
++        foreach (var value in context.ActionArguments.Values)
++        {
++            if (value is PlaybackProgressInfo progress)
++            {
++                grants.Report(userId, progress.ItemId, progress.MediaSourceId, progress.PlaySessionId, device, token, false);
++            }
++            else if (value is PlaybackStopInfo stopped)
++            {
++                grants.Report(userId, stopped.ItemId, stopped.MediaSourceId, stopped.PlaySessionId, device, token, true);
++            }
++        }
++    }
++}
+--- /dev/null
++++ b/Jellyfin.Api/Security/SecureMediaOptions.cs
+@@ -0,0 +1,38 @@
++using System;
++using System.Linq;
++
++namespace Jellyfin.Api.Security;
++
++internal sealed class SecureMediaOptions
++{
++    public bool EnableAndroidTvDirectPlay { get; set; } = true;
++
++    public string PlaybackBaseUrl { get; set; } = string.Empty;
++
++    public bool AllowInsecureHttpPlayback { get; set; }
++
++    public string[] AndroidTvDeviceIds { get; set; } = Array.Empty<string>();
++
++    public bool EnableAndroidTvImageCompatibility { get; set; } = true;
++
++    public bool AllowInsecureHttpImages { get; set; }
++
++    public string[] AndroidTvImageDeviceIds { get; set; } = Array.Empty<string>();
++
++    public bool TryGetPlaybackBase(out Uri? value)
++    {
++        value = null;
++        if (PlaybackBaseUrl.Length is 0 or > 2048
++            || !Uri.TryCreate(PlaybackBaseUrl, UriKind.Absolute, out var parsed)
++            || parsed.UserInfo.Length != 0 || parsed.Query.Length != 0 || parsed.Fragment.Length != 0
++            || (parsed.Scheme != Uri.UriSchemeHttps
++                && !(parsed.Scheme == Uri.UriSchemeHttp && AllowInsecureHttpPlayback))
++            || parsed.AbsolutePath.Split('/').Any(segment => segment is "." or ".."))
++        {
++            return false;
++        }
++
++        value = parsed;
++        return true;
++    }
++}
+--- /dev/null
++++ b/Jellyfin.Api/Security/SecurePlaybackGrantBindingFilter.cs
+@@ -0,0 +1,30 @@
++using System;
++using System.Threading.Tasks;
++using Microsoft.AspNetCore.Mvc;
++using Microsoft.AspNetCore.Mvc.Controllers;
++using Microsoft.AspNetCore.Mvc.Filters;
++
++namespace Jellyfin.Api.Security;
++
++internal sealed class SecurePlaybackGrantBindingFilter : IAsyncAuthorizationFilter
++{
++    public Task OnAuthorizationAsync(AuthorizationFilterContext context)
++    {
++        var http = context.HttpContext;
++        if (http.Items.TryGetValue(SecurePlaybackGrantMiddleware.GrantAuthentication, out var value)
++            && value is SecurePlaybackGrantStore.Grant grant
++            && (context.ActionDescriptor is not ControllerActionDescriptor action
++                || action.ControllerTypeInfo.Assembly.GetName().Name != "Jellyfin.Api"
++                || action.ControllerName != "Videos" || action.ActionName != "GetVideoStream"
++                || http.User.Identity?.IsAuthenticated != true
++                || !Guid.TryParse(http.User.FindFirst("Jellyfin-UserId")?.Value, out var userId)
++                || !userId.Equals(grant.UserId)
++                || http.User.FindFirst("Jellyfin-Token")?.Value != grant.Token
++                || http.User.FindFirst("Jellyfin-DeviceId")?.Value != grant.DeviceId))
++        {
++            context.Result = new UnauthorizedResult();
++        }
++
++        return Task.CompletedTask;
++    }
++}
+--- /dev/null
++++ b/Jellyfin.Api/Security/SecurePlaybackGrantMiddleware.cs
+@@ -0,0 +1,67 @@
++using System;
++using System.Linq;
++using System.Threading.Tasks;
++using Microsoft.AspNetCore.Http;
++using Microsoft.Extensions.Options;
++
++namespace Jellyfin.Api.Security;
++
++internal sealed class SecurePlaybackGrantMiddleware(RequestDelegate next,
++    SecurePlaybackGrantStore grants, IOptionsMonitor<SecureMediaOptions> options)
++{
++    internal static readonly object GrantAuthentication = new();
++
++    public async Task InvokeAsync(HttpContext http)
++    {
++        if (!http.Request.Query.TryGetValue("PlaybackGrant", out var values))
++        {
++            await next(http).ConfigureAwait(false);
++            return;
++        }
++
++        var configuration = options.CurrentValue;
++        var segments = (http.Request.Path.Value ?? string.Empty).Split('/', StringSplitOptions.RemoveEmptyEntries);
++        var query = http.Request.Query;
++        var allowed = new[] { "PlaybackGrant", "Static", "MediaSourceId", "PlaySessionId" };
++        var valid = configuration.EnableAndroidTvDirectPlay && configuration.TryGetPlaybackBase(out var configuredBase)
++            && (HttpMethods.IsGet(http.Request.Method) || HttpMethods.IsHead(http.Request.Method))
++            && segments.Length == 3 && segments[0].Equals("Videos", StringComparison.OrdinalIgnoreCase)
++            && segments[2].Equals("stream", StringComparison.OrdinalIgnoreCase)
++            && Guid.TryParse(segments[1], out var itemId)
++            && values.Count == 1 && grants.TryRead(values[0], out var grant) && grant is not null
++            && grant.ItemId.Equals(itemId) && (http.Request.IsHttps
++                || (configuration.AllowInsecureHttpPlayback && grant.AllowHttp))
++            && (configuration.AndroidTvDeviceIds.Length == 0
++                || configuration.AndroidTvDeviceIds.Contains(grant.DeviceId, StringComparer.Ordinal))
++            && query.Keys.All(key => allowed.Contains(key, StringComparer.OrdinalIgnoreCase))
++            && query.TryGetValue("Static", out var isStatic) && isStatic.Count == 1
++            && isStatic[0]?.Equals("true", StringComparison.OrdinalIgnoreCase) == true
++            && query.TryGetValue("MediaSourceId", out var source) && source.Count == 1 && source[0] == grant.SourceId
++            && query.TryGetValue("PlaySessionId", out var session) && session.Count == 1 && session[0] == grant.PlaySessionId
++            && !http.Request.Headers.ContainsKey("Authorization")
++            && !http.Request.Headers.ContainsKey("X-Emby-Authorization")
++            && !http.Request.Headers.ContainsKey("X-Emby-Token")
++            && !http.Request.Headers.ContainsKey("X-MediaBrowser-Token");
++
++        if (!valid || !grants.TryRead(values[0], out var accepted) || accepted is null)
++        {
++            http.Response.StatusCode = StatusCodes.Status401Unauthorized;
++            http.Response.Headers.CacheControl = "no-store";
++            return;
++        }
++
++        // The native handler still validates the real session, revocation and
++        // account status. A separate MVC filter binds the resulting identity.
++        http.Items[GrantAuthentication] = accepted;
++        http.Request.Headers.Authorization = "MediaBrowser Token=\"" + accepted.Token + "\"";
++        http.Response.OnStarting(() =>
++        {
++            http.Response.Headers.CacheControl = "private, no-store";
++            http.Response.Headers.Pragma = "no-cache";
++            http.Response.Headers.Expires = "0";
++            http.Response.Headers["Referrer-Policy"] = "no-referrer";
++            return Task.CompletedTask;
++        });
++        await next(http).ConfigureAwait(false);
++    }
++}
+--- /dev/null
++++ b/Jellyfin.Api/Security/SecurePlaybackGrantStore.cs
+@@ -0,0 +1,148 @@
++using System;
++using System.Collections.Generic;
++using System.Linq;
++using System.Security.Cryptography;
++using System.Text;
++using Microsoft.AspNetCore.WebUtilities;
++
++namespace Jellyfin.Api.Security;
++
++/// <summary>
++/// Process-local capabilities for one original media source. Only authenticated
++/// playback progress can renew them; reading a capability never extends its life.
++/// </summary>
++internal sealed class SecurePlaybackGrantStore(TimeProvider clock)
++{
++    internal const string Prefix = "jfmp_";
++    internal static readonly TimeSpan IdleLifetime = TimeSpan.FromMinutes(10);
++    internal static readonly TimeSpan MaximumLifetime = TimeSpan.FromHours(8);
++    private const int UserLimit = 32;
++    private const int GlobalLimit = 4096;
++    private readonly object _gate = new();
++    private readonly Dictionary<string, Grant> _grants = new(StringComparer.Ordinal);
++
++    internal string? Create(Guid userId, Guid itemId, string sourceId, string playSessionId, string deviceId, string token, bool allowHttp)
++    {
++        if (userId.Equals(Guid.Empty) || itemId.Equals(Guid.Empty)
++            || !ValidValue(sourceId, 128) || !ValidValue(playSessionId, 128)
++            || !ValidValue(deviceId, 128) || !ValidValue(token, 512))
++        {
++            return null;
++        }
++
++        lock (_gate)
++        {
++            var now = clock.GetUtcNow();
++            RemoveExpired(now);
++            if (_grants.Count >= GlobalLimit || _grants.Values.Count(grant => grant.UserId.Equals(userId)) >= UserLimit)
++            {
++                return null;
++            }
++
++            var handle = Prefix + WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
++            _grants.Add(Hash(handle), new Grant
++            {
++                UserId = userId,
++                ItemId = itemId,
++                SourceId = sourceId,
++                PlaySessionId = playSessionId,
++                DeviceId = deviceId,
++                Token = token,
++                AllowHttp = allowHttp,
++                MaximumExpiry = now.Add(MaximumLifetime),
++                Expires = now.Add(IdleLifetime),
++            });
++            return handle;
++        }
++    }
++
++    internal bool TryRead(string? handle, out Grant? grant)
++    {
++        grant = null;
++        if (handle is null || handle.Length != Prefix.Length + 43 || !handle.StartsWith(Prefix, StringComparison.Ordinal)
++            || handle.Skip(Prefix.Length).Any(c => !char.IsAsciiLetterOrDigit(c) && c is not '-' and not '_'))
++        {
++            return false;
++        }
++
++        lock (_gate)
++        {
++            var now = clock.GetUtcNow();
++            var key = Hash(handle);
++            if (!_grants.TryGetValue(key, out var found))
++            {
++                return false;
++            }
++
++            if (found.Expires <= now || found.MaximumExpiry <= now)
++            {
++                _grants.Remove(key);
++                return false;
++            }
++
++            grant = found;
++            return true;
++        }
++    }
++
++    internal void Report(Guid userId, Guid itemId, string sourceId, string playSessionId, string deviceId, string token, bool stopped)
++    {
++        lock (_gate)
++        {
++            var now = clock.GetUtcNow();
++            RemoveExpired(now);
++            foreach (var pair in _grants.Where(pair => pair.Value.UserId.Equals(userId)
++                && pair.Value.ItemId.Equals(itemId) && (string.IsNullOrEmpty(sourceId) || pair.Value.SourceId == sourceId)
++                && pair.Value.PlaySessionId == playSessionId && pair.Value.DeviceId == deviceId
++                && pair.Value.Token == token).ToArray())
++            {
++                if (stopped)
++                {
++                    _grants.Remove(pair.Key);
++                }
++                else
++                {
++                    var expiry = now.Add(IdleLifetime);
++                    pair.Value.Expires = expiry < pair.Value.MaximumExpiry ? expiry : pair.Value.MaximumExpiry;
++                }
++            }
++        }
++    }
++
++    private static bool ValidValue(string? value, int maximum) => value is { Length: > 0 }
++        && value.Length <= maximum && !value.Any(c => char.IsControl(c) || c is '"' or '\\');
++
++    private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
++
++    private void RemoveExpired(DateTimeOffset now)
++    {
++        foreach (var key in _grants.Where(pair => pair.Value.Expires <= now || pair.Value.MaximumExpiry <= now)
++            .Select(pair => pair.Key).ToArray())
++        {
++            _grants.Remove(key);
++        }
++    }
++
++    internal sealed class Grant
++    {
++        internal required Guid UserId { get; init; }
++
++        internal required Guid ItemId { get; init; }
++
++        internal required string SourceId { get; init; }
++
++        internal required string PlaySessionId { get; init; }
++
++        internal required string DeviceId { get; init; }
++
++        internal required string Token { get; init; }
++
++        internal required bool AllowHttp { get; init; }
++
++        internal required DateTimeOffset MaximumExpiry { get; init; }
++
++        internal required DateTimeOffset Expires { get; set; }
++
++        public override string ToString() => "Scoped playback capability";
++    }
++}
+--- /dev/null
++++ b/Jellyfin.Api/Security/Web/image-client.js
+@@ -0,0 +1,166 @@
++/* Native Jellyfin media security preview 1: authenticate same-origin library images by header. */
++(() => {
++    'use strict';
++    if (window.__mediaGuardImages) return;
++    window.__mediaGuardImages = true;
++    const loader = document.currentScript;
++    if (!loader) return;
++    const scriptUrl = new URL(loader.src, location.href);
++    const suffix = '/MediaSecurity/image-client.js';
++    if (scriptUrl.origin !== location.origin || !scriptUrl.pathname.endsWith(suffix)) return;
++    const basePath = scriptUrl.pathname.slice(0, -suffix.length);
++    const roots = new Set(['items', 'artists', 'genres', 'musicgenres', 'persons', 'studios']);
++    const nativeSrc = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
++    if (!nativeSrc?.set) return;
++    const nativeSetAttribute = Element.prototype.setAttribute;
++    const nativeFetch = window.fetch.bind(window);
++    const states = new WeakMap();
++    const cache = new Map();
++    const queue = [];
++    let active = 0, generation = 0, currentSession = '', totalBytes = 0;
++    const maxBytes = 32 * 1024 * 1024, maxEntries = 192;
++
++    function protectedUrl(value) {
++        if (typeof value !== 'string' || !value || /^(blob:|data:)/i.test(value)) return null;
++        try {
++            const url = new URL(value, location.href);
++            if (url.origin !== location.origin || url.username || url.password) return null;
++            if (/%(?:2f|5c|2e)/i.test(url.pathname)) return null;
++            if (basePath && !url.pathname.toLowerCase().startsWith(basePath.toLowerCase() + '/')) return null;
++            const parts = url.pathname.slice(basePath.length).split('/').filter(Boolean);
++            if (parts.length < 4 || !roots.has(parts[0].toLowerCase()) || parts[2].toLowerCase() !== 'images') return null;
++            // Existing Cinema/native query credentials are unnecessary here.
++            for (const key of [...url.searchParams.keys()]) if (/^(api_?key|access_token|token)$/i.test(key)) url.searchParams.delete(key);
++            url.hash = '';
++            return url.href;
++        } catch { return null; }
++    }
++
++    function session() {
++        try {
++            const api = window.ApiClient;
++            const token = api?.accessToken?.(), user = api?.getCurrentUserId?.();
++            const server = new URL(api.serverAddress().replace(/\/?$/, '/'));
++            if (typeof token !== 'string' || !token || typeof user !== 'string' || !user
++                || server.origin !== location.origin || server.pathname.replace(/\/$/, '') !== basePath) return null;
++            return { token, key: user + '\n' + token };
++        } catch { return null; }
++    }
++
++    function reset(key) {
++        if (currentSession === key) return;
++        currentSession = key; generation++;
++        for (const entry of cache.values()) if (entry.objectUrl) URL.revokeObjectURL(entry.objectUrl);
++        cache.clear(); totalBytes = 0;
++    }
++
++    function trim() {
++        for (const [key, entry] of cache) {
++            if (cache.size <= maxEntries && totalBytes <= maxBytes) break;
++            if (!entry.objectUrl) continue;
++            URL.revokeObjectURL(entry.objectUrl); totalBytes -= entry.size; cache.delete(key);
++        }
++    }
++
++    function pump() {
++        while (active < 6 && queue.length) {
++            const task = queue.shift(); active++;
++            task().finally(() => { active--; pump(); });
++        }
++    }
++
++    async function imageBlob(url, auth) {
++        reset(auth.key);
++        const found = cache.get(url);
++        if (found) { cache.delete(url); cache.set(url, found); return found.promise; }
++        if (queue.length >= 384) throw new Error('image queue full');
++        const ownGeneration = generation;
++        const entry = {};
++        entry.promise = new Promise((resolve, reject) => {
++            queue.push(async () => {
++                try {
++                    if (ownGeneration !== generation) throw new Error('session changed');
++                    const response = await nativeFetch(url, { headers: { Authorization: 'MediaBrowser Token="' + auth.token + '"' },
++                        credentials: 'omit', redirect: 'error', cache: 'no-store', referrerPolicy: 'no-referrer' });
++                    if (!response.ok || !response.headers.get('Content-Type')?.toLowerCase().startsWith('image/')) throw new Error('image denied');
++                    const reader = response.body.getReader(), chunks = []; let size = 0;
++                    while (true) {
++                        const part = await reader.read(); if (part.done) break;
++                        size += part.value.byteLength;
++                        if (size > 16 * 1024 * 1024 || ownGeneration !== generation) { await reader.cancel(); throw new Error('image unavailable'); }
++                        chunks.push(part.value);
++                    }
++                    if (ownGeneration !== generation) throw new Error('session changed');
++                    entry.size = size; entry.objectUrl = URL.createObjectURL(new Blob(chunks, { type: response.headers.get('Content-Type') }));
++                    totalBytes += size; trim(); resolve(entry.objectUrl);
++                } catch (error) { if (cache.get(url) === entry) cache.delete(url); reject(error); }
++            });
++            pump();
++        });
++        cache.set(url, entry);
++        return entry.promise;
++    }
++
++    async function applyImage(element, url, state) {
++        let auth = session();
++        // The adapter loads before Jellyfin itself. Wait briefly for its API
++        // client, rather than sending an anonymous image request first.
++        for (let attempt = 0; !auth && attempt < 80 && states.get(element) === state; attempt++) {
++            await new Promise(resolve => setTimeout(resolve, 100)); auth = session();
++        }
++        if (states.get(element) !== state) return;
++        if (!auth) { element.dispatchEvent(new Event('error')); return; }
++        try {
++            const objectUrl = await imageBlob(url, auth);
++            if (states.get(element) !== state || session()?.key !== auth.key) return;
++            nativeSrc.set.call(element, objectUrl);
++        } catch {
++            if (states.get(element) === state) element.dispatchEvent(new Event('error'));
++        }
++    }
++
++    function intercept(element, value) {
++        const url = protectedUrl(value);
++        if (!url) { states.delete(element); return false; }
++        const state = { source: url }; states.set(element, state);
++        void applyImage(element, url, state);
++        return true;
++    }
++
++    Object.defineProperty(HTMLImageElement.prototype, 'src', { ...nativeSrc,
++        set(value) { if (!intercept(this, value)) nativeSrc.set.call(this, value); } });
++    Element.prototype.setAttribute = function(name, value) {
++        if (this instanceof HTMLImageElement && String(name).toLowerCase() === 'src' && intercept(this, String(value))) return;
++        return nativeSetAttribute.call(this, name, value);
++    };
++
++    // CSS backgrounds set directly (rather than through Jellyfin's image
++    // preloader) also occur in Cinema. Only inline same-origin image URLs.
++    function background(element) {
++        const value = element.style?.backgroundImage;
++        if (!value || !value.includes('url(')) return;
++        const match = /^url\(["']?(.*?)["']?\)$/.exec(value);
++        const url = match && protectedUrl(match[1]);
++        const auth = url && session();
++        if (!auth) return;
++        imageBlob(url, auth).then(objectUrl => {
++            if (element.style.backgroundImage === value && session()?.key === auth.key) element.style.backgroundImage = 'url("' + objectUrl + '")';
++        }).catch(() => {});
++    }
++    function scan(element) {
++        if (element instanceof HTMLImageElement && !states.has(element)) {
++            const source = element.getAttribute('src');
++            if (source) intercept(element, source);
++        }
++        background(element);
++    }
++    new MutationObserver(records => {
++        for (const record of records) {
++            if (record.type === 'attributes') scan(record.target);
++            else for (const node of record.addedNodes) if (node.nodeType === 1) {
++                scan(node); for (const element of node.querySelectorAll('[style], img[src]')) scan(element);
++            }
++        }
++    }).observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'src'] });
++    setInterval(() => { const auth = session(); if (!auth || auth.key !== currentSession) reset(auth?.key || ''); }, 1000);
++})();
+--- /dev/null
++++ b/tests/Jellyfin.Api.Tests/Security/NativeMediaSecurityTests.cs
+@@ -0,0 +1,248 @@
++using System;
++using System.Collections.Generic;
++using System.Threading.Tasks;
++using Jellyfin.Api.Security;
++using Microsoft.AspNetCore.Http;
++using Microsoft.Extensions.Options;
++using Xunit;
++
++namespace Jellyfin.Api.Tests.Security;
++
++public sealed class NativeMediaSecurityTests
++{
++    private const string NativeToken = "unit-test-native-session";
++    private const string Source = "source-one";
++    private const string Session = "play-session-one";
++    private const string Device = "fire-tv-one";
++    private static readonly Guid UserId = Guid.Parse("11111111111111111111111111111111");
++    private static readonly Guid ItemId = Guid.Parse("22222222222222222222222222222222");
++
++    [Fact]
++    public void Capability_IsOpaqueAndContainsNoNativeToken()
++    {
++        var store = new SecurePlaybackGrantStore(new Clock());
++        var handle = store.Create(UserId, ItemId, Source, Session, Device, NativeToken, false);
++        Assert.NotNull(handle);
++        Assert.Equal(48, handle.Length);
++        Assert.DoesNotContain(NativeToken, handle, StringComparison.Ordinal);
++        Assert.True(store.TryRead(handle, out var grant));
++        Assert.NotNull(grant);
++        Assert.Equal(UserId, grant.UserId);
++        Assert.Equal(ItemId, grant.ItemId);
++        Assert.DoesNotContain(NativeToken, grant.ToString(), StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void Capability_ExpiresWithoutAuthenticatedProgress()
++    {
++        var clock = new Clock();
++        var store = new SecurePlaybackGrantStore(clock);
++        var handle = store.Create(UserId, ItemId, Source, Session, Device, NativeToken, false);
++        clock.Advance(TimeSpan.FromMinutes(9));
++        Assert.True(store.TryRead(handle, out _));
++        clock.Advance(TimeSpan.FromMinutes(1));
++        Assert.False(store.TryRead(handle, out _));
++    }
++
++    [Fact]
++    public void Capability_RenewsOnlyThroughBoundPlaybackProgress()
++    {
++        var clock = new Clock();
++        var store = new SecurePlaybackGrantStore(clock);
++        var handle = store.Create(UserId, ItemId, Source, Session, Device, NativeToken, false);
++        clock.Advance(TimeSpan.FromMinutes(9));
++        store.Report(UserId, ItemId, Source, Session, Device, NativeToken, false);
++        clock.Advance(TimeSpan.FromMinutes(9));
++        Assert.True(store.TryRead(handle, out _));
++        clock.Advance(TimeSpan.FromMinutes(1));
++        Assert.False(store.TryRead(handle, out _));
++    }
++
++    [Theory]
++    [InlineData("user")]
++    [InlineData("item")]
++    [InlineData("source")]
++    [InlineData("session")]
++    [InlineData("device")]
++    [InlineData("token")]
++    public void Capability_ForeignProgressCannotRenew(string changed)
++    {
++        var clock = new Clock();
++        var store = new SecurePlaybackGrantStore(clock);
++        var handle = store.Create(UserId, ItemId, Source, Session, Device, NativeToken, false);
++        clock.Advance(TimeSpan.FromMinutes(9));
++        store.Report(
++            changed == "user" ? Guid.NewGuid() : UserId,
++            changed == "item" ? Guid.NewGuid() : ItemId,
++            changed == "source" ? "other-source" : Source,
++            changed == "session" ? "other-session" : Session,
++            changed == "device" ? "other-device" : Device,
++            changed == "token" ? "other-token" : NativeToken,
++            false);
++        clock.Advance(TimeSpan.FromMinutes(1));
++        Assert.False(store.TryRead(handle, out _));
++    }
++
++    [Fact]
++    public void Capability_PlaybackStopRevokesImmediately()
++    {
++        var store = new SecurePlaybackGrantStore(new Clock());
++        var handle = store.Create(UserId, ItemId, Source, Session, Device, NativeToken, false);
++        store.Report(UserId, ItemId, Source, Session, Device, NativeToken, true);
++        Assert.False(store.TryRead(handle, out _));
++    }
++
++    [Fact]
++    public void Capability_CannotOutliveItsAbsoluteMaximum()
++    {
++        var clock = new Clock();
++        var store = new SecurePlaybackGrantStore(clock);
++        var handle = store.Create(UserId, ItemId, Source, Session, Device, NativeToken, false);
++        for (var minute = 1; minute < 480; minute++)
++        {
++            clock.Advance(TimeSpan.FromMinutes(1));
++            store.Report(UserId, ItemId, Source, Session, Device, NativeToken, false);
++        }
++
++        Assert.True(store.TryRead(handle, out _));
++        clock.Advance(TimeSpan.FromMinutes(1));
++        Assert.False(store.TryRead(handle, out _));
++    }
++
++    [Fact]
++    public void Capability_OneUserCannotExhaustAnotherUsersQuota()
++    {
++        var clock = new Clock();
++        var store = new SecurePlaybackGrantStore(clock);
++        for (var i = 0; i < 32; i++)
++        {
++            Assert.NotNull(store.Create(UserId, ItemId, Source, Session, Device, NativeToken, false));
++        }
++
++        Assert.Null(store.Create(UserId, ItemId, Source, Session, Device, NativeToken, false));
++        Assert.NotNull(store.Create(Guid.NewGuid(), ItemId, Source, Session, Device, NativeToken, false));
++        clock.Advance(TimeSpan.FromMinutes(10));
++        Assert.NotNull(store.Create(UserId, ItemId, Source, Session, Device, NativeToken, false));
++    }
++
++    [Theory]
++    [InlineData("https://movies.example/media", false, true)]
++    [InlineData("http://192.168.0.113:8099/media", false, false)]
++    [InlineData("http://jellyfin:8096/media", false, false)]
++    [InlineData("http://jellyfin:8096/media", true, true)]
++    [InlineData("https://user:password@movies.example/media", false, false)]
++    [InlineData("https://movies.example/media?ApiKey=value", false, false)]
++    [InlineData("https://movies.example/media#fragment", false, false)]
++    public void PlaybackBase_RequiresExplicitTrustedConfiguration(string address, bool allowHttp, bool expected)
++    {
++        var options = new SecureMediaOptions { PlaybackBaseUrl = address, AllowInsecureHttpPlayback = allowHttp };
++        Assert.Equal(expected, options.TryGetPlaybackBase(out var parsed));
++        if (expected)
++        {
++            Assert.NotNull(parsed);
++            Assert.Equal(new Uri(address).Scheme, parsed.Scheme);
++            Assert.Equal(new Uri(address).Port, parsed.Port);
++        }
++    }
++
++    [Fact]
++    public async Task Middleware_RecoversNativeAuthenticationOnlyForExactOriginalFile()
++    {
++        var store = new SecurePlaybackGrantStore(new Clock());
++        var handle = store.Create(UserId, ItemId, Source, Session, Device, NativeToken, false);
++        var http = Request(handle);
++        var called = false;
++        var middleware = new SecurePlaybackGrantMiddleware(
++            context =>
++            {
++                called = true;
++                Assert.Equal("MediaBrowser Token=\"" + NativeToken + "\"", context.Request.Headers.Authorization);
++                return Task.CompletedTask;
++            },
++            store,
++            new Monitor(new SecureMediaOptions { PlaybackBaseUrl = "https://movies.example/media" }));
++        await middleware.InvokeAsync(http);
++        Assert.True(called);
++        Assert.True(http.Items.ContainsKey(SecurePlaybackGrantMiddleware.GrantAuthentication));
++    }
++
++    [Theory]
++    [InlineData("different-item")]
++    [InlineData("different-source")]
++    [InlineData("different-session")]
++    [InlineData("api-route")]
++    [InlineData("post")]
++    [InlineData("http")]
++    [InlineData("transcoding")]
++    [InlineData("unknown-query")]
++    [InlineData("explicit-credentials")]
++    [InlineData("tampered")]
++    public async Task Middleware_RejectsMisuseWithoutInvokingDownstream(string changed)
++    {
++        var store = new SecurePlaybackGrantStore(new Clock());
++        var handle = store.Create(UserId, ItemId, Source, Session, Device, NativeToken, false);
++        var http = Request(handle);
++        switch (changed)
++        {
++            case "different-item": http.Request.Path = "/Videos/" + Guid.NewGuid().ToString("N") + "/stream"; break;
++            case "different-source": http.Request.QueryString = new QueryString(http.Request.QueryString.Value!.Replace(Source, "other-source", StringComparison.Ordinal)); break;
++            case "different-session": http.Request.QueryString = new QueryString(http.Request.QueryString.Value!.Replace(Session, "other-session", StringComparison.Ordinal)); break;
++            case "api-route": http.Request.Path = "/System/Configuration"; break;
++            case "post": http.Request.Method = "POST"; break;
++            case "http": http.Request.Scheme = "http"; break;
++            case "transcoding": http.Request.QueryString = new QueryString(http.Request.QueryString.Value!.Replace("Static=true", "Static=false", StringComparison.Ordinal)); break;
++            case "unknown-query": http.Request.QueryString = http.Request.QueryString.Add("Params", "other-file"); break;
++            case "explicit-credentials": http.Request.Headers.Authorization = "MediaBrowser Token=\"other-token\""; break;
++            case "tampered": http.Request.QueryString = new QueryString(http.Request.QueryString.Value!.Replace(handle!, handle![..^1] + (handle[^1] == 'A' ? "B" : "A"), StringComparison.Ordinal)); break;
++        }
++
++        var called = false;
++        var middleware = new SecurePlaybackGrantMiddleware(
++            _ =>
++            {
++                called = true;
++                return Task.CompletedTask;
++            },
++            store,
++            new Monitor(new SecureMediaOptions { PlaybackBaseUrl = "https://movies.example/media" }));
++        await middleware.InvokeAsync(http);
++        Assert.False(called);
++        Assert.Equal(401, http.Response.StatusCode);
++        Assert.False(http.Request.Headers.ContainsKey("Authorization") && changed != "explicit-credentials");
++    }
++
++    private static DefaultHttpContext Request(string? handle)
++    {
++        var http = new DefaultHttpContext();
++        http.Request.Scheme = "https";
++        http.Request.Method = "GET";
++        http.Request.PathBase = "/media";
++        http.Request.Path = "/Videos/" + ItemId.ToString("N") + "/stream";
++        http.Request.QueryString = QueryString.Create(new Dictionary<string, string?>
++        {
++            ["PlaybackGrant"] = handle,
++            ["Static"] = "true",
++            ["MediaSourceId"] = Source,
++            ["PlaySessionId"] = Session,
++        });
++        return http;
++    }
++
++    private sealed class Clock : TimeProvider
++    {
++        private DateTimeOffset _now = new(2026, 11, 2, 0, 0, 0, TimeSpan.Zero);
++
++        public override DateTimeOffset GetUtcNow() => _now;
++
++        internal void Advance(TimeSpan amount) => _now = _now.Add(amount);
++    }
++
++    private sealed class Monitor(SecureMediaOptions value) : IOptionsMonitor<SecureMediaOptions>
++    {
++        public SecureMediaOptions CurrentValue => value;
++
++        public SecureMediaOptions Get(string? name) => value;
++
++        public IDisposable? OnChange(Action<SecureMediaOptions, string?> listener) => null;
++    }
++}

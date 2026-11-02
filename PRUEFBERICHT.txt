@@ -1,0 +1,134 @@
+Jellyfin 12.4 - native Medienabsicherung, Teststand 1
+Stand: 02.11.2026
+=================================================
+
+ERGEBNIS UND HERKUNFT
+
+Der offizielle Jellyfin-Quellcode v12.4 wurde direkt angepasst und fuer
+Linux x64 gebaut. Basis ist Commit 83d0d0e7f76e23e2e085c8ff67d28b772d35967d
+aus https://github.com/jellyfin/jellyfin. Es handelt sich um einen eigenen
+Testfork, keine offizielle Freigabe durch das Jellyfin-Projekt.
+
+Die urspruengliche Lizenz und die vollstaendigen zugehoerigen Serverquellen
+liegen bei. SOURCE-PATCH.diff zeigt jede Quellcodeaenderung gegen den
+unveraenderten offiziellen Download; source-provenance.json nennt dessen Hash.
+Vier vorhandene Dateien wurden angepasst, hinzu kommen das native
+Sicherheitsmodul und dessen Tests. Es wird kein Schutzplugin nachgeladen.
+
+UMGESETZTES VERHALTEN
+
+1. Direkte Medienzugriffe erfordern eine gueltige persoenliche Anmeldung.
+   Zusaetzlich greifen aktuelle Bibliotheks-, Medien- und Wiedergaberechte.
+   Ein allgemeiner Anwendungsschluessel ohne persoenlichen Benutzer erteilt
+   hier keine pauschale Bibliotheksfreigabe.
+
+2. Bibliotheksbilder erfordern ebenfalls Anmeldung und Sichtbarkeit des
+   betreffenden Inhalts. Browserbilder werden mit Authentifizierungsheadern
+   geladen. Fuer Android TV 0.19.10 sind kurz gueltige, verschluesselte und
+   auf ein Bild begrenzte Berechtigungen enthalten. Der normale Zugangstoken
+   wird dabei nicht offen in die Bildadresse geschrieben.
+
+3. Android TV 0.19.10 erhaelt fuer eine bereits nativ unterstuetzte Direct-
+   Play-Quelle eine auf diesen Film, diese Quelle und diese Wiedergabesitzung
+   begrenzte Adresse. Der Server nimmt den normalen Sitzungstoken nicht in
+   diese neue Adresse auf. Originaldaten koennen ohne erzwungenes HLS oder
+   Remux ausgeliefert werden. Die Auswahl von Codecs, Container, Qualitaet und
+   Untertiteln bleibt Bestandteil der normalen Jellyfin-Aushandlung.
+
+4. Die neue Wiedergabeberechtigung besteht aus einem zufaelligen 256-Bit-Wert.
+   Sie ist prozesslokal, erlaubt nur GET/HEAD einer bestimmten statischen
+   Videodatei und keinen allgemeinen API-Zugriff. Ihre Leerlaufzeit betraegt
+   zehn Minuten, ihre absolute Laufzeit hoechstens acht Stunden. Nur passende,
+   bereits angemeldete Wiedergabemeldungen verlaengern die Leerlaufzeit.
+   Abrufe verlaengern sie nicht. Stoppen widerruft sie; Abmeldung oder
+   entfallene Bibliotheksrechte werden bei weiteren Abrufen erneut geprueft.
+   Bereits laufende HTTP-Uebertragungen werden nicht rueckwirkend abgebrochen.
+
+5. Die Zieladresse stammt ausschliesslich aus einer expliziten Konfiguration.
+   Host und Forwarded-Host der Anfrage koennen sie nicht veraendern. Schema,
+   Port und Basispfad werden beibehalten. Ohne ausdrueckliche HTTP-Erlaubnis
+   sind die TV-Kompatibilitaetspfade nur ueber HTTPS freigegeben. Eine private
+   IP schaltet keine Ausnahme ein. Die bekannten-Proxy-Regeln des offiziellen
+   Servers bleiben erhalten.
+
+6. Die Streaminglogik prueft auch die tatsaechlich aufgeloeste Medienquelle,
+   nachdem aeltere Params-/LiveStream-Parameter ausgewertet wurden. Ein
+   erlaubter Film in der URL darf keine fremde gesperrte Quelle freigeben.
+
+7. Standardheader ergaenzen SAMEORIGIN, nosniff, eine begrenzte CSP fuer
+   Einbettung/Objekte/Basisadresse sowie eine Referrer-Regel. Der Header
+   X-Jellyfin-Media-Security: native-preview-1 kennzeichnet diesen Teststand.
+   Ein bestehender Logout-Logeintrag gibt den Sitzungstoken nicht mehr aus.
+
+ROUTENUMFANG UND BEWUSSTE KOMPATIBILITAETSGRENZEN
+
+Die zusaetzliche native Autorisierung wertet aufgeloeste Controlleraktionen
+aus. Sie erfasst Videos, Audio, UniversalAudio, DynamicHls, HlsSegment,
+Subtitle, VideoAttachments, Trickplay und Lyrics sowie Bibliotheksdateien/
+Downloads und PlaybackInfo. Bildrouten fuer Items und benannte
+Bibliothekseintraege erhalten eigene Rechtepruefungen. Benutzeravatare und
+die fuer die Anmeldeseite benoetigten Webdateien werden nicht pauschal
+gesperrt.
+
+Alte rohe Live-TV-Dateirouten und bestimmte alte HLS-Cachedateirouten liefern
+403, solange ihre Zuordnung zu einem erlaubten Inhalt nicht zuverlaessig
+feststeht. Die aktuellen hls1-Routen bleiben unterstuetzt. Live-TV, DLNA,
+Trickplay und alle Drittanbieter-Clients wurden hier nicht vollstaendig
+praktisch geprueft. Ein persoenliches API-Token bleibt ein normales Geheimnis;
+der Fork entfernt solche Tokens nicht aus allen bestehenden HLS-, Untertitel-
+oder Drittanbieter-URL-Pfaden. PROXY-HINWEISE.txt bleibt daher relevant.
+
+AUSGEFUEHRTE PRUEFUNGEN
+
+- Abschliessender Release-Build: erfolgreich, 0 Warnungen, 0 Fehler.
+- Linux-x64-Publish: erfolgreich, eigenstaendige Laufzeit .NET 10.0.14.
+  Apphost als ELF64 fuer x86-64 kontrolliert. Kein .NET auf dem NAS erforderlich.
+- API-Regressionstests: 186 bestanden, 0 fehlgeschlagen, 0 uebersprungen.
+  Darin enthalten sind 30 neue gezielte Tests fuer begrenzte Berechtigungen,
+  Ablaufzeiten, Bindungen, Kontingente, HTTP-/URL-Konfiguration und Routenumfang.
+- Isolierte echte Serverlaufzeit: 65 dokumentierte Pruef-/Einrichtungsschritte
+  bestanden, mit kuenstlichen Videodateien, Audio und Untertiteln. Diese Zahl
+  ist keine Anzahl unabhaengiger Sicherheitsluecken. Sie umfasst:
+  * Ohne oder mit ungueltigem Token: Video/Bilder gesperrt.
+  * Nach Widerruf/Abmeldung: Sitzungstoken und vorhandene Berechtigung gesperrt.
+  * Eingeschraenkter Benutzer: gesperrte Videos, Bilder und PlaybackInfo 403.
+  * Berechtigter Benutzer: originale Video-/Audio-Rangeantworten, Bilder,
+    Untertitel und ausdruecklich angefordertes HLS inklusive Segmentabruf.
+  * TV-PlaybackInfo erhaelt SupportsDirectPlay und eine begrenzte Adresse.
+    Headerloser Abruf ueber diese Adresse liefert die originalen Dateibytes.
+  * Fremder Film, andere Quelle/Parameter, Static=false und allgemeine
+    API-Aufrufe werden durch eine Wiedergabeberechtigung nicht freigegeben.
+  * Host-/Forwarded-Manipulation veraendert das konfigurierte Ziel nicht.
+  * Ein gewoehnlicher Client erhaelt weiterhin die normale Quellenantwort.
+  * Erzeugte Logs enthalten keine der nachverfolgten Test-Sitzungstokens,
+    Wiedergabeberechtigungen oder Testpasswoerter.
+- Chrome: 7 weitere Browserpruefungen bestanden, darunter echter Login,
+  authentifiziertes Bildladen ueber Header, HTTP ohne unsicheren Bildcookie,
+  privates Browserfenster sowie erneute Sperre nach Logout.
+- NuGet-Abhaengigkeitspruefung des Serverprojekts einschliesslich transitiver
+  Pakete gegen api.nuget.org: keine bekannten verwundbaren Pakete gemeldet.
+  Das ist keine Pruefung saemtlicher Betriebssystem-/FFmpeg-Pakete des Images.
+- Dockerpaket statisch kontrolliert: YAML, getrennte Pfade und Containername,
+  Port 8099, schreibgeschuetzte Medien und explizite HTTP-Freigabe. Bash-Syntax
+  gueltig, neun Faelle der URL-Pruefung bestanden. Paketdateien mit SHA-256.
+
+PRAKTISCH NOCH AUSSTEHEND
+
+Die Laufzeitpruefungen liefen in einer frischen Windows-Testinstanz nur auf
+127.0.0.1:18135/media. Sie nutzten keine Produktionsdaten und keine externe
+Serveradresse. Der Linux-Code wurde plattformgerecht veroeffentlicht, aber
+auf diesem Rechner steht kein Docker-Dienst zur Verfuegung. Containerstart
+auf dem NAS, physischer Fire TV 0.19.10, dessen Langzeit-/Pause-/Seek-Verhalten,
+echter HTTPS-Proxy, interner Hostname und die konkrete Medienvielfalt muessen
+noch am getrennten Docker-Testserver geprueft werden.
+
+Die fest angeheftete TV-Clientversion wurde anhand ihres Quellcodes beruecksichtigt;
+eine ausgefuehrte Filmwiedergabe auf echter TV-Hardware wird damit nicht behauptet.
+Bei nicht kompatiblen Codecs oder Untertiteln kann Jellyfin weiterhin berechtigt
+remuxen/transkodieren. Langzeitpausen ueber zehn Minuten oder ein Serverneustart
+koennen das erneute Oeffnen des Films erfordern.
+
+Der vorhandene Server, seine Konfigurationsdateien, der Proxy und GitHub wurden
+hier nicht umgestellt. Keine pauschale Aussage, dass jede denkbare Luecke in
+Jellyfin oder fremden Plugins geschlossen sei. Die geprueften Faelle sind in
+den beiliegenden TRX- und JSON-Berichten nachvollziehbar.

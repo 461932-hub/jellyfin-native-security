@@ -1,0 +1,45 @@
+{
+  "repository": "https://github.com/jellyfin/jellyfin",
+  "tag": "v12.4",
+  "tagObject": {
+    "sha": "83d0d0e7f76e23e2e085c8ff67d28b772d35967d",
+    "type": "commit",
+    "url": "https://api.github.com/repos/jellyfin/jellyfin/git/commits/83d0d0e7f76e23e2e085c8ff67d28b772d35967d"
+  },
+  "download": "https://codeload.github.com/jellyfin/jellyfin/zip/refs/tags/v12.4",
+  "archiveSha256": "befb23dea163d24d30aa46c76b2cc95f34a8dd87b681b7ede0f1c4d5bd238449",
+  "archiveBytes": 4081416,
+  "sourceFiles": 2655,
+  "modified": true,
+  "serverDeployed": false,
+  "nativeSecurityWorkStarted": true,
+  "nativeSecurityWorkCompleted": true,
+  "modifiedUpstreamFiles": [
+    "Emby.Server.Implementations/Session/SessionManager.cs",
+    "Jellyfin.Api/Helpers/StreamingHelpers.cs",
+    "Jellyfin.Api/Jellyfin.Api.csproj",
+    "Jellyfin.Server/Startup.cs"
+  ],
+  "newSourceFiles": [
+    "Jellyfin.Api/Security/AndroidTvImageFilter.cs",
+    "Jellyfin.Api/Security/ImageAuthenticationMiddleware.cs",
+    "Jellyfin.Api/Security/ImageAuthenticationStartupFilter.cs",
+    "Jellyfin.Api/Security/ImageAuthorizationFilter.cs",
+    "Jellyfin.Api/Security/ImageGrantProtector.cs",
+    "Jellyfin.Api/Security/ImageSessionCookie.cs",
+    "Jellyfin.Api/Security/ImageWebMiddleware.cs",
+    "Jellyfin.Api/Security/ImageWebStartupFilter.cs",
+    "Jellyfin.Api/Security/MediaAuthorizationFilter.cs",
+    "Jellyfin.Api/Security/NativeMediaSecurityExtensions.cs",
+    "Jellyfin.Api/Security/NativeSecurityHeadersStartupFilter.cs",
+    "Jellyfin.Api/Security/SecureAndroidTvDirectPlayFilter.cs",
+    "Jellyfin.Api/Security/SecureMediaOptions.cs",
+    "Jellyfin.Api/Security/SecurePlaybackGrantBindingFilter.cs",
+    "Jellyfin.Api/Security/SecurePlaybackGrantMiddleware.cs",
+    "Jellyfin.Api/Security/SecurePlaybackGrantStore.cs",
+    "Jellyfin.Api/Security/Web/image-client.js",
+    "tests/Jellyfin.Api.Tests/Security/NativeMediaSecurityTests.cs"
+  ],
+  "dockerContainerTested": false,
+  "physicalAndroidTvTested": false
+}

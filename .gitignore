@@ -1,0 +1,13 @@
+**/bin/
+**/obj/
+**/__pycache__/
+**/node_modules/
+test-results/
+*.log
+*.zip
+*.tar
+*.tar.gz
+test.env
+github-tools/
+native-fixture-*/
+.env
