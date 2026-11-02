@@ -131,4 +131,6 @@ koennen das erneute Oeffnen des Films erfordern.
 Der vorhandene Server, seine Konfigurationsdateien, der Proxy und GitHub wurden
 hier nicht umgestellt. Keine pauschale Aussage, dass jede denkbare Luecke in
 Jellyfin oder fremden Plugins geschlossen sei. Die geprueften Faelle sind in
-den beiliegenden TRX- und JSON-Berichten nachvollziehbar.
+den urspruenglichen lokalen TRX- und JSON-Berichten nachvollziehbar.
+Diese lokalen Maschinenberichte werden nicht in das GitHub-Repository
+uebertragen. Der GitHub-Build erzeugt eigene Linux-/Docker-Nachweise.
