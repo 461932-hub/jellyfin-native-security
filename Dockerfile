@@ -17,6 +17,7 @@ LABEL org.opencontainers.image.title="Jellyfin native security preview" \
 COPY --from=build /out/ /jellyfin/
 COPY server/ /usr/share/jellyfin-native-source/
 COPY SOURCE-PATCH.diff /usr/share/jellyfin-native-source/SOURCE-PATCH.diff
+COPY licenses/ /usr/share/jellyfin-native-licenses/
 # Empty named volumes inherit these owners on their first initialization.
 RUN chmod 755 /jellyfin/jellyfin && \
     mkdir -p /config /cache && chown 1000:1000 /config /cache
