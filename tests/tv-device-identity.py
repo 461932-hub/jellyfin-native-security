@@ -5,6 +5,7 @@ passwords, tokens and media are synthetic; no credentials or grant URLs are logg
 """
 import http.client
 import json
+import os
 from pathlib import Path
 import secrets
 import time
@@ -14,6 +15,7 @@ ORIGIN = 'http://127.0.0.1:18099'
 LOGIN_DEVICE = 'ci-tv-before-user-session'
 USER_DEVICE = 'ci-tv-after-user-session'
 PASSWORD = 'NativeIdentity-' + secrets.token_urlsafe(24)
+MEDIA_PATH = os.environ.get('NATIVE_IDENTITY_FIXTURE_MEDIA', '/Media')
 CHECKS = []
 
 
@@ -59,6 +61,7 @@ def passed(name):
 
 token = None
 try:
+    request('/Startup/User', expected=200)
     request('/Startup/User', 'POST', {'Name': 'Native Identity CI', 'Password': PASSWORD}, expected=204)
     request('/Startup/Complete', 'POST', expected=204)
     login = api('/Users/AuthenticateByName', 'POST', {'Username': 'Native Identity CI', 'Pw': PASSWORD}, expected=200)
@@ -68,7 +71,7 @@ try:
     assert not config['EnableLegacyAuthorization']
     request('/Library/VirtualFolders?' + urlencode({
         'name': 'NativeIdentity', 'collectionType': 'movies', 'refreshLibrary': 'true'}), 'POST',
-        {'LibraryOptions': {'PathInfos': [{'Path': '/Media'}],
+        {'LibraryOptions': {'PathInfos': [{'Path': MEDIA_PATH}],
                             'EnableInternetProviders': False, 'EnableRealtimeMonitor': False,
                             'TypeOptions': [{'Type': 'Movie', 'MetadataFetchers': [], 'ImageFetchers': []}]}},
         token=token, expected=204)
