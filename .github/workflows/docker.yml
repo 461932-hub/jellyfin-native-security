@@ -16,7 +16,7 @@ jobs:
       packages: write
     env:
       IMAGE: ghcr.io/${{ github.repository }}
-      VERSION: 12.4-preview1
+      VERSION: 12.4-preview2
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -26,6 +26,8 @@ jobs:
           sha256sum -c SOURCE.SHA256SUMS --quiet
           docker compose -f CasaOS-Import.yaml config --quiet
           bash -n tests/docker-smoke.sh
+          sh -n docker-entrypoint.sh
+          python3 tests/verify-casaos-import.py
       - name: Run API regression tests
         run: |
           mkdir -p test-results

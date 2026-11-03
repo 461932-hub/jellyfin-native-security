@@ -14,7 +14,7 @@ liegen unter `server/`; `SOURCE-PATCH.diff` zeigt die Aenderungen gegen
 ## Installation ueber CasaOS
 
 Nach einem erfolgreichen Lauf unter **Actions** steht das Image unter
-`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview1` bereit.
+`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview2` bereit.
 Der Kontoinhaber muss das GitHub-Containerpaket einmal unter **Packages ->
 jellyfin-native-security -> Package settings -> Change visibility -> Public**
 oeffentlich lesbar machen. Ein oeffentliches Repository allein aendert die
@@ -34,17 +34,28 @@ Domainbetrieb eine feste HTTPS-Basisadresse und den passenden Jellyfin-Basispfad
 konfigurieren sowie beide HTTP-Ausnahmen deaktivieren.
 
 Eigener Container: `jellyfin-native-security-test`, Port **8099**. Die bisherigen
-Container und ihre Einstellungen werden nicht eingebunden. Neue benannte
-Docker-Volumes speichern Konfiguration und Cache:
+Container und ihre Einstellungen werden nicht eingebunden. Eigene
+Ordner auf dem CasaOS-Host speichern Konfiguration und Cache:
 
-| Zweck | Docker-Volume |
+| Zweck | Hostordner |
 | --- | --- |
-| Konfiguration und Datenbank | `jellyfin-native-security-test-config` |
-| Cache | `jellyfin-native-security-test-cache` |
+| Konfiguration und Datenbank | `/DATA/AppData/jellyfin-native-security-test/config` |
+| Cache | `/DATA/AppData/jellyfin-native-security-test/cache` |
 
-Die Volumes werden beim ersten Anlegen aus dem Image mit Besitzer **1000:1000**
-initialisiert. Der Server laeuft als Benutzer 1000, mit schreibgeschuetztem
-Container-Dateisystem und ohne Linux-Capabilities. `/DATA/Media` und `/DATA/hdd`
+Preview 2 verwendet absolute Bind-Pfade, weil aeltere CasaOS-Importoberflaechen
+benannte Docker-Volumes als `[object Object]` uebernehmen. Die Portzuordnung
+lautet **Host 8099 -> Container 8096**. Ein eventuell noch offenes Formular mit
+falschen Werten schliessen und die neue Importdatei erneut laden.
+
+Der kurze Starthelfer beginnt als root und setzt ausschliesslich die Besitzer
+leerer `/config`- und `/cache`-Mountwurzeln auf **1000:1000**. Er verweigert die
+automatische Aenderung fremder nichtleerer oder nicht lesbarer Verzeichnisse.
+Es gibt keinen rekursiven Besitzerwechsel. Danach startet `gosu` den Server
+als Benutzer 1000. Der laufende Server hat keine effektiven Linux-Capabilities
+und darf ueber `no-new-privileges` keine neuen Rechte erlangen. Der Starthelfer
+setzt diese Kernel-Einstellung auch selbst vor dem Programmstart. Fuer den
+Starthelfer sind im Container nur CHOWN, SETUID und SETGID freigegeben;
+das Container-Dateisystem bleibt schreibgeschuetzt. `/DATA/Media` und `/DATA/hdd`
 werden nur lesbar eingebunden. Die alten Medienzugriffsschutz-Plugins bitte
 aus diesem frischen Testcontainer heraushalten; sie koennten ihre bisherige
 Wiedergabeanpassung erneut anwenden. Cinema und Vorschlagsboard sind separate
@@ -53,7 +64,7 @@ Erweiterungen; dieses Image verwendet zuerst die Original-Weboberflaeche.
 ## Build und Nachweise
 
 ```sh
-docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview1 .
+docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview2 .
 ```
 
 Der Build prueft die Quellpruefsummen, kompiliert die Linux-x64-Laufzeit und
@@ -65,7 +76,9 @@ Die lokalen Vorpruefungen umfassen 186 API-Tests, 65 dokumentierte Schritte an
 einer frischen Serverinstanz und sieben Browserpruefungen. Details und Grenzen
 stehen in `PRUEFBERICHT.txt` und `PROXY-HINWEISE.txt`. Der GitHub-Build fuehrt
 die API-Tests erneut unter Linux sowie einen getrennten echten Docker-Start
-mit benannten Volumes und anonymen Bild-/Videoanfragen aus. Ergebnisse stehen
+mit frisch angelegten root-eigenen Bind-Ordnern und anonymen Bild-/Videoanfragen
+aus. Zusaetzlich werden der Rechteabwurf, der Neustart mit vorhandenen Daten,
+die Ablehnung fremder Verzeichnisse und der Medien-Leseschutz geprueft. Ergebnisse stehen
 erst nach erfolgreichem CI-Lauf im Release zur Verfuegung.
 
 Ein physischer Fire-TV-Test dieses Forks sowie der echte Produktionsproxy

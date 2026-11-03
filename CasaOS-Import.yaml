@@ -1,15 +1,13 @@
 name: jellyfin-native-security-test
 services:
   jellyfin:
-    image: ghcr.io/461932-hub/jellyfin-native-security:12.4-preview1
+    image: ghcr.io/461932-hub/jellyfin-native-security:12.4-preview2
     container_name: jellyfin-native-security-test
     platform: linux/amd64
-    user: "1000:1000"
+    user: "0:0"
     restart: unless-stopped
     ports:
-      - target: 8096
-        published: "8099"
-        protocol: tcp
+      - "8099:8096/tcp"
     environment:
       TZ: Europe/Berlin
       # Explicit, unencrypted LAN test. Replace with trusted HTTPS URL later.
@@ -17,11 +15,11 @@ services:
       JELLYFIN_SecureMedia__AllowInsecureHttpPlayback: "true"
       JELLYFIN_SecureMedia__AllowInsecureHttpImages: "true"
     volumes:
-      - type: volume
-        source: native_config
+      - type: bind
+        source: /DATA/AppData/jellyfin-native-security-test/config
         target: /config
-      - type: volume
-        source: native_cache
+      - type: bind
+        source: /DATA/AppData/jellyfin-native-security-test/cache
         target: /cache
       - type: bind
         source: /DATA/Media
@@ -35,14 +33,13 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
     read_only: true
     tmpfs:
       - /tmp:rw,nosuid,nodev,size=256m
-volumes:
-  native_config:
-    name: jellyfin-native-security-test-config
-  native_cache:
-    name: jellyfin-native-security-test-cache
 x-casaos:
   id: de.danie.jellyfin-native-security-test
   architectures:
@@ -63,4 +60,4 @@ x-casaos:
   description:
     en_us: Separate Jellyfin 12.4 test server with native media authorization. Explicit HTTP LAN test on port 8099.
     de_de: Getrennter Jellyfin-12.4-Testserver mit nativer Medienabsicherung. Ausdruecklicher HTTP-Test im Heimnetz auf Port 8099.
-  version: 12.4-preview1
+  version: 12.4-preview2
