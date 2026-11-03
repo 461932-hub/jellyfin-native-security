@@ -10,6 +10,8 @@ const id = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', user = 'bbbbbbbbbbbbbbbbbbbbbbbbb
 const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jXioAAAAASUVORK5CYII=', 'base64');
 const requests = [], checks = [];
 let fixtureMode = 'allowed', seriesInformation = false, server, browser, diagnosticPage;
+let holdInitialMetadata = false;
+const pendingMetadata = [];
 const note = name => { checks.push({ name, passed: true }); console.log('PASS ' + name); };
 
 (async () => {
@@ -29,9 +31,12 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
         if (url.pathname.includes('/Users/') && url.pathname.endsWith('/Items')) {
             const permitted = fixtureMode === 'allowed' && req.headers.authorization === 'MediaBrowser Token="fixture-token"';
             res.writeHead(permitted ? 200 : 403, { 'Content-Type': 'application/json' });
-            setTimeout(() => res.end(JSON.stringify({ Items: permitted ? [{ Id: id, Name: 'Native fixture title', Type: 'Movie',
+            const send = () => res.end(JSON.stringify({ Items: permitted ? [{ Id: id, Name: 'Native fixture title', Type: 'Movie',
                 Overview: '<img src="https://outside.invalid/leak" onerror="window.injected=1">Safe description',
-                ProductionYear: 2026, Genres: ['Drama'], ImageTags: { Thumb: 'fixture' }, BackdropImageTags: ['fixture'] }] : [] })), 250); return;
+                ProductionYear: 2026, Genres: ['Drama'], ImageTags: { Thumb: 'fixture' }, BackdropImageTags: ['fixture'] }] : [] }));
+            if (holdInitialMetadata) pendingMetadata.push(send);
+            else setTimeout(send, 250);
+            return;
         }
         if (url.pathname.endsWith('/Items/' + id)) {
             const permitted = fixtureMode === 'allowed' && req.headers.authorization === 'MediaBrowser Token="fixture-token"';
@@ -70,10 +75,12 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
             if (new URL(route.request().url()).origin !== origin) { external.push(new URL(route.request().url()).origin); return route.abort(); }
             return route.continue();
         });
-        fixtureMode = 'allowed';
-        await page.goto(origin + base + '/web/index.html');
+        fixtureMode = 'allowed'; holdInitialMetadata = true;
+        await page.goto(origin + base + '/web/index.html', {waitUntil:'domcontentloaded'});
         assert.equal(await page.locator('html').evaluate(node=>node.classList.contains('native-cinema-boot')), true);
         assert.equal(await page.locator('#indexPage').evaluate(node=>getComputedStyle(node).visibility), 'hidden');
+        holdInitialMetadata = false;
+        for (const send of pendingMetadata.splice(0)) send();
         await page.locator('.native-cinema-hero').waitFor();
         await page.waitForFunction(()=>!document.documentElement.classList.contains('native-cinema-boot'));
         note('Cinema entry reserves the view and never exposes an unprepared original page at ' + (base || '/'));
@@ -296,8 +303,9 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
     const folder = process.env.CINEMA_REPORT_DIR || path.join(__dirname, '../test-results'); fs.mkdirSync(folder, { recursive: true });
     fs.writeFileSync(path.join(folder, 'cinema-browser.json'), JSON.stringify({ completed: true, checks, scope: 'Isolated browser fixtures; root and /media paths, no NAS credentials or media' }, null, 2) + '\n');
 })().catch(async error => {
-    console.error(error.name + ': ' + error.message); process.exitCode = 1;
+    console.error(error.stack || error.name + ': ' + error.message); process.exitCode = 1;
     if (diagnosticPage) console.error(JSON.stringify(await diagnosticPage.locator('dialog button').evaluateAll(nodes=>nodes.map(node=>({label:node.getAttribute('aria-label'),cls:node.className,rect:{x:node.getBoundingClientRect().x,y:node.getBoundingClientRect().y,width:node.getBoundingClientRect().width,height:node.getBoundingClientRect().height},visibility:getComputedStyle(node).visibility}))).catch(()=>[])));
 }).finally(async () => {
+    holdInitialMetadata = false; for (const send of pendingMetadata.splice(0)) send();
     if (browser) await browser.close(); if (server) await new Promise(resolve => server.close(resolve));
 });
