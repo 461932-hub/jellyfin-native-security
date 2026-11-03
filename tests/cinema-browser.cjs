@@ -9,7 +9,7 @@ const assets = path.join(__dirname, '../web');
 const id = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', user = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jXioAAAAASUVORK5CYII=', 'base64');
 const requests = [], checks = [];
-let fixtureMode = 'allowed', server, browser;
+let fixtureMode = 'allowed', seriesInformation = false, server, browser, diagnosticPage;
 const note = name => { checks.push({ name, passed: true }); console.log('PASS ' + name); };
 
 (async () => {
@@ -17,24 +17,35 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
         const url = new URL(req.url, 'http://fixture.invalid');
         requests.push({ path: url.pathname, query: url.search, auth: req.headers.authorization || '' });
         const base = url.pathname.startsWith('/media/') ? '/media' : '';
-        if (url.pathname.endsWith('/web/cinema-native.js') || url.pathname.endsWith('/web/cinema-native.css')) {
+        if (/\/web\/cinema-(native\.(js|css)|boot\.js)$/.test(url.pathname)) {
             const file = path.basename(url.pathname);
-            res.writeHead(200, { 'Content-Type': file.endsWith('.js') ? 'application/javascript' : 'text/css' });
+            res.writeHead(200, { 'Content-Type': file.endsWith('.js') ? 'application/javascript; charset=utf-8' : 'text/css; charset=utf-8' });
             res.end(fs.readFileSync(path.join(assets, file))); return;
         }
         if (url.pathname.includes('/Users/') && url.pathname.endsWith('/Items')) {
             const permitted = fixtureMode === 'allowed' && req.headers.authorization === 'MediaBrowser Token="fixture-token"';
             res.writeHead(permitted ? 200 : 403, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ Items: permitted ? [{ Id: id, Name: 'Native fixture title', Type: 'Movie',
+            setTimeout(() => res.end(JSON.stringify({ Items: permitted ? [{ Id: id, Name: 'Native fixture title', Type: 'Movie',
                 Overview: '<img src="https://outside.invalid/leak" onerror="window.injected=1">Safe description',
-                ProductionYear: 2026, Genres: ['Drama'], ImageTags: { Thumb: 'fixture' }, BackdropImageTags: ['fixture'] }] : [] })); return;
+                ProductionYear: 2026, Genres: ['Drama'], ImageTags: { Thumb: 'fixture' }, BackdropImageTags: ['fixture'] }] : [] })), 250); return;
+        }
+        if (url.pathname.endsWith('/Items/' + id)) {
+            const permitted = fixtureMode === 'allowed' && req.headers.authorization === 'MediaBrowser Token="fixture-token"';
+            res.writeHead(permitted ? 200 : 403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(permitted ? { Id: id, Name: 'Native fixture title', Type: seriesInformation ? 'Series' : 'Movie', Overview: 'Full movie information', Genres: ['Drama'], People: [{Name:'Fixture Actor',Type:'Actor'}], ProductionYear: 2026, BackdropImageTags: ['fixture'] } : {})); return;
+        }
+        if (url.pathname.endsWith('/Shows/' + id + '/Seasons')) {
+            res.writeHead(200, {'Content-Type':'application/json'});res.end(JSON.stringify({Items:[{Id:'dddddddddddddddddddddddddddddddd',Name:'Staffel 1'},{Id:'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',Name:'Staffel 2'}]}));return;
+        }
+        if (url.pathname.endsWith('/Shows/' + id + '/Episodes')) {
+            res.writeHead(200, {'Content-Type':'application/json'});res.end(JSON.stringify({Items:[{Id:'ffffffffffffffffffffffffffffffff',Name:url.searchParams.get('seasonId')==='eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'?'Second season episode':'First season episode',Type:'Episode',IndexNumber:1}],TotalRecordCount:1}));return;
         }
         if (url.pathname.includes('/Images/')) { res.writeHead(200, { 'Content-Type': 'image/png' }); res.end(pixel); return; }
         if (url.pathname.endsWith('/web/index.html')) {
-            res.writeHead(200, { 'Content-Type': 'text/html' });
-            res.end(`<!doctype html><html><head><link rel="stylesheet" href="cinema-native.css">
+            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+            res.end(`<!doctype html><html><head><script src="cinema-boot.js"></script><link rel="stylesheet" href="cinema-native.css">
               <style>body{margin:0}header{background:#444}.MuiToolbar-root{display:flex;align-items:center}.mainAnimatedPage{position:absolute;top:64px;left:0;right:0}.card{position:relative;width:200px;height:120px}.cardImageContainer{position:absolute;inset:0}.cardPadder{height:0;padding-bottom:56.25%}</style>
-              <script>window.fixture={token:'fixture-token',user:'${user}',outside:false,plays:0};window.ApiClient={accessToken:()=>fixture.token,getCurrentUserId:()=>fixture.user,serverAddress:()=>fixture.outside?'https://outside.invalid':'${'http://127.0.0.1:' + server.address().port + base}'};</script>
+              <script>window.fixture={token:'fixture-token',user:'${user}',outside:false,plays:0};window.ApiClient={accessToken:()=>fixture.token,getCurrentUserId:()=>fixture.user,serverId:()=> 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',serverAddress:()=>fixture.outside?'https://outside.invalid':'${'http://127.0.0.1:' + server.address().port + base}'};</script>
               <script defer src="cinema-native.js"></script></head><body>
               <header class="MuiAppBar-root"><div class="MuiToolbar-root"><a class="MuiButton-root MuiButton-sizeLarge" href="#/">Native Home</a><button id="original-menu">Native menu</button></div></header>
               <div id="indexPage" class="mainAnimatedPage"><div id="homeTab" class="is-active"><div class="itemsContainer">
@@ -49,6 +60,7 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
     for (const base of ['', '/media']) {
         const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
         const page = await context.newPage(), external = [], errors = [];
+        diagnosticPage = page;
         page.on('pageerror', error => errors.push(error.name));
         await context.route('**/*', route => {
             if (new URL(route.request().url()).origin !== origin) { external.push(new URL(route.request().url()).origin); return route.abort(); }
@@ -56,7 +68,11 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
         });
         fixtureMode = 'allowed';
         await page.goto(origin + base + '/web/index.html');
+        assert.equal(await page.locator('html').evaluate(node=>node.classList.contains('native-cinema-boot')), true);
+        assert.equal(await page.locator('#indexPage').evaluate(node=>getComputedStyle(node).visibility), 'hidden');
         await page.locator('.native-cinema-hero').waitFor();
+        await page.waitForFunction(()=>!document.documentElement.classList.contains('native-cinema-boot'));
+        note('Cinema entry reserves the view and never exposes an unprepared original page at ' + (base || '/'));
         await page.waitForFunction(() => document.querySelector('.native-cinema-hero-image')?.naturalWidth > 0);
         assert.equal(await page.evaluate(() => scrollY), 0, 'The asynchronously added preview must not skip the top of the page');
         assert.equal(await page.locator('.native-cinema-hero video,.native-cinema-hero audio').count(), 0);
@@ -73,6 +89,34 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
         assert.equal(last.auth, 'MediaBrowser Token="fixture-token"');
         assert(requests.every(req => !/[?&](api_?key|token|access_token)=/i.test(req.query)));
         note('Metadata uses same-origin authentication headers with no URL session tokens at ' + (base || '/'));
+        const sourceRect = await page.locator('.card').boundingBox();
+        await page.locator('.card').hover(); await page.locator('.native-cinema-hover').waitFor({state:'visible'});
+        const expanded = await page.locator('.native-cinema-hover').boundingBox();
+        assert(expanded.width > sourceRect.width * 1.3);
+        assert.equal(await page.locator('.native-cinema-hover').evaluate(node=>node.parentElement===document.body),true);
+        assert.equal((await page.locator('.card').boundingBox()).width,sourceRect.width);
+        note('Floating hover expands without resizing or clipping the native row at ' + (base || '/'));
+        await page.locator('.native-cinema-hover').getByRole('button',{name:'Mehr Infos',exact:true}).click();
+        await page.getByRole('dialog',{name:'Native fixture title',exact:true}).waitFor();
+        assert.equal(await page.locator('.native-cinema-info-overview').textContent(),'Full movie information');
+        assert.equal(await page.locator('.native-cinema-info video,.native-cinema-info audio').count(),0);
+        assert.equal(await page.locator('.native-cinema-original-details').getAttribute('href'),'#/details?id='+id);
+        await page.keyboard.press('Escape');await page.locator('.native-cinema-info').waitFor({state:'detached'});
+        note('Cinema information window loads authorized details and closes with Escape at ' + (base || '/'));
+        await page.locator('#original-details').dispatchEvent('click');
+        await page.getByRole('dialog',{name:'Native fixture title',exact:true}).waitFor();
+        assert.equal(new URL(page.url()).hash,'');
+        await page.getByRole('button',{name:'Schließen',exact:true}).click();
+        note('Normal card clicks open information while the original detail link remains available at ' + (base || '/'));
+        seriesInformation = true;
+        await page.locator('#original-details').dispatchEvent('click');
+        await page.getByLabel('Staffel',{exact:true}).selectOption('eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
+        const episode=page.getByRole('button',{name:/Second season episode/});await episode.waitFor();
+        await page.evaluate(()=>document.querySelector('.itemsContainer').addEventListener('command',event=>{if(event.detail?.command==='play'){fixture.plays++;event.preventDefault();}}));
+        await episode.click();await page.locator('.native-cinema-info').waitFor({state:'detached'});
+        assert.equal(await page.evaluate(()=>fixture.plays),2);
+        seriesInformation = false;
+        note('Series information loads seasons and episodes and delegates episode play to native commands at ' + (base || '/'));
         await page.setViewportSize({ width: 390, height: 844 });
         const rect = await page.locator('.native-cinema-hero').boundingBox();
         assert(rect.x >= 0 && rect.x + rect.width <= 390);
@@ -81,7 +125,7 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
         await page.evaluate(() => { fixture.token = ''; document.querySelector('.native-cinema-hero').dispatchEvent(new Event('scroll', { bubbles: true })); });
         await page.locator('.native-cinema-hero').waitFor({ state: 'detached' });
         assert.equal(await page.locator('.native-cinema-art').count(), 0);
-        await page.locator('#original-play').click({ force: true }); assert.equal(await page.evaluate(() => fixture.plays), 2);
+        await page.locator('#original-play').click({ force: true }); assert.equal(await page.evaluate(() => fixture.plays), 3);
         note('Logout removes added artwork while preserving original controls at ' + (base || '/'));
         fixtureMode = 'denied';
         await page.evaluate(() => { fixture.token = 'different-fixture-token'; fixture.user = 'cccccccccccccccccccccccccccccccc'; });
@@ -91,6 +135,20 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
         await page.evaluate(() => { fixture.outside = true; });
         await page.waitForTimeout(1500); assert.deepEqual(external, []); assert.equal(await page.locator('.native-cinema-hero').count(), 0);
         note('A foreign API-server origin cannot receive the session token at ' + (base || '/'));
+        await page.evaluate(() => {
+            const key='series - dddddddddddddddddddddddddddddddd';
+            localStorage.setItem(key,JSON.stringify({ImageType:'Primary',SortBy:['DateCreated'],ShowTitle:false}));
+        });
+        await page.goto(origin + base + '/web/index.html#/tv?topParentId=dddddddddddddddddddddddddddddddd');
+        const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('series - dddddddddddddddddddddddddddddddd')));
+        assert.equal(saved.ImageType,'Thumb');assert.equal(saved.ViewMode,'grid');assert.deepEqual(saved.SortBy,['DateCreated']);assert.equal(saved.ShowTitle,false);
+        await page.evaluate(()=>{const key='series - dddddddddddddddddddddddddddddddd';const saved=JSON.parse(localStorage.getItem(key));saved.ImageType='Banner';localStorage.setItem(key,JSON.stringify(saved));});
+        await page.reload();assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('series - dddddddddddddddddddddddddddddddd')).ImageType),'Banner');
+        note('Thumbnail becomes the native default once while sorting and later choices remain intact at ' + (base || '/'));
+        await page.goto(origin + base + '/web/index.html#/movies?topParentId=dddddddddddddddddddddddddddddddd');
+        const initial=await page.evaluate(()=>JSON.parse(localStorage.getItem('movies - dddddddddddddddddddddddddddddddd')));
+        assert(initial.SortBy.includes('SortName'));assert.equal(initial.SortOrder,'Ascending');assert.equal(initial.StartIndex,0);assert.equal(initial.ShowTitle,true);assert.equal(initial.ShowYear,true);assert.equal(initial.CardLayout,false);assert.equal(initial.ImageType,'Thumb');
+        note('A fresh native movie-view record contains the complete renderer configuration at ' + (base || '/'));
         await page.goto(origin + base + '/web/index.html?cinema=off');
         assert.equal(await page.locator('.native-cinema-hero').count(), 0);
         assert.equal(await page.locator('html').getAttribute('class'), 'native-cinema-disabled');
@@ -100,6 +158,9 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
     }
     const folder = process.env.CINEMA_REPORT_DIR || path.join(__dirname, '../test-results'); fs.mkdirSync(folder, { recursive: true });
     fs.writeFileSync(path.join(folder, 'cinema-browser.json'), JSON.stringify({ completed: true, checks, scope: 'Isolated browser fixtures; root and /media paths, no NAS credentials or media' }, null, 2) + '\n');
-})().catch(error => { console.error(error.name + ': ' + error.message); process.exitCode = 1; }).finally(async () => {
+})().catch(async error => {
+    console.error(error.name + ': ' + error.message); process.exitCode = 1;
+    if (diagnosticPage) console.error(JSON.stringify(await diagnosticPage.locator('dialog button').evaluateAll(nodes=>nodes.map(node=>({label:node.getAttribute('aria-label'),cls:node.className,rect:{x:node.getBoundingClientRect().x,y:node.getBoundingClientRect().y,width:node.getBoundingClientRect().width,height:node.getBoundingClientRect().height},visibility:getComputedStyle(node).visibility}))).catch(()=>[])));
+}).finally(async () => {
     if (browser) await browser.close(); if (server) await new Promise(resolve => server.close(resolve));
 });

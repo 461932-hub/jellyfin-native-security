@@ -14,7 +14,7 @@ liegen unter `server/`; `SOURCE-PATCH.diff` zeigt die Aenderungen gegen
 ## Installation ueber CasaOS
 
 Nach einem erfolgreichen Lauf unter **Actions** steht das Image unter
-`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview4` bereit.
+`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview5` bereit.
 Der Kontoinhaber muss das GitHub-Containerpaket einmal unter **Packages ->
 jellyfin-native-security -> Package settings -> Change visibility -> Public**
 oeffentlich lesbar machen. Ein oeffentliches Repository allein aendert die
@@ -72,7 +72,7 @@ das Container-Dateisystem bleibt schreibgeschuetzt. `/DATA/Media` und `/DATA/hdd
 werden nur lesbar eingebunden. Die alten Medienzugriffsschutz-Plugins bitte
 aus diesem frischen Testcontainer heraushalten; sie koennten ihre bisherige
 Wiedergabeanpassung erneut anwenden. Cinema und Vorschlagsboard sind separate
-Erweiterungen. Preview 4 gestaltet den Original-Webclient im Cinema-Stil.
+Erweiterungen. Seit Preview 5 startet Cinema direkt als Standardoberflaeche.
 
 ## Cinema-Design mit originalen Funktionen
 
@@ -85,7 +85,21 @@ Die vorhandenen Jellyfin-Seiten, Navigationslinks, Such-, Filter-, SyncPlay-,
 Cast- und Kontomenues bleiben erhalten. Der neue grosse Abspielknopf klickt
 die vorhandene native Abspieltaste desselben Titels; er startet keinen eigenen
 Player und veraendert keine Wiedergabe- oder Transcoding-Einstellungen.
-Weitere Informationen oeffnen die originale Jellyfin-Detailseite.
+Karten werden bei Mausberuehrung als schwebende Vorschau vergroessert. Ein
+Klick oeffnet das Cinema-Infofenster mit Beschreibung, Besetzung, nativen
+Abspiel-/Favoritenaktionen und bei Serien einer Staffel-/Folgenauswahl.
+Eine Verknuepfung zur originalen Detailseite bleibt im Fenster vorhanden.
+
+Die Startseite behaelt ihre nativen horizontalen Reihen und Schieberegler;
+Filme und Serien behalten das feste Bibliotheksraster. Der vorhandene native
+Ansichtswert fuer Filme und Serien wird einmal pro Bibliothek und Browser auf
+Kachelansicht / Miniatur gesetzt. Sortierung und weitere Einstellungen bleiben
+erhalten, ebenso eine spaeter bewusst geaenderte Ansicht.
+
+Das Einstiegdokument laedt die Cinema-Startlogik und das CSS vor den normalen
+Clientskripten. Eine passende Cinema-Ladeansicht reserviert den Platz, bis die
+vorbereitete Ansicht bereit ist. Die alte ungestaltete Seite wird dabei nicht
+vorher angezeigt. Ein ausbleibender Start bietet eine Erneut-laden-Aktion.
 
 Die Erweiterung liest nur Metadaten zu den bereits angezeigten erlaubten
 Titeln. Sie bindet sich an die aktuelle Anmeldung und denselben Server-Ursprung
@@ -106,7 +120,7 @@ vorhandene TV-Direct-Play-Pfad wird nicht umgestellt.
 ## Build und Nachweise
 
 ```sh
-docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview3 .
+docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview5 .
 ```
 
 Der Build prueft die Quellpruefsummen, kompiliert die Linux-x64-Laufzeit und
