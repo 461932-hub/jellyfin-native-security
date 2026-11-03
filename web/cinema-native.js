@@ -185,10 +185,10 @@
 
     function mediaFacts(item) {
         const parts = [item.Type === 'Movie' ? 'Film' : item.Type === 'Episode' ? 'Folge' : 'Serie', item.OfficialRating];
-        if (item.Type === 'Episode') parts.push([Number.isInteger(item.ParentIndexNumber) ? 'S' + item.ParentIndexNumber : '', Number.isInteger(item.IndexNumber) ? 'E' + item.IndexNumber : ''].filter(Boolean).join(' · '));
+        if (item.Type === 'Episode') parts.push([Number.isInteger(item.ParentIndexNumber) ? 'S' + item.ParentIndexNumber : '', Number.isInteger(item.IndexNumber) ? 'E' + item.IndexNumber : ''].filter(Boolean).join(' Â· '));
         if (item.RunTimeTicks) parts.push(Math.round(item.RunTimeTicks / 600000000) + ' Min.');
         else if (item.ProductionYear) parts.push(item.ProductionYear);
-        return parts.filter(Boolean).join('  ·  ');
+        return parts.filter(Boolean).join('  Â·  ');
     }
 
     function hideHover() {
@@ -231,7 +231,7 @@
             if (!item || ticket !== hoverTicket || ownGeneration !== generation || session()?.key !== auth.key || !card.isConnected) return;
             hover?.remove(); hoverCard = card;
             const panel = element('article', 'native-cinema-hover'); panel.dataset.nativeCinemaOwned = '';
-            panel.setAttribute('aria-label', (item.Name || '') + ' – Vorschau');
+            panel.setAttribute('aria-label', (item.Name || '') + ' â€“ Vorschau');
             const art = element('button', 'native-cinema-hover-art'); art.type = 'button'; art.setAttribute('aria-label', 'Mehr Infos zu ' + (item.Name || 'diesem Titel'));
             const image = element('img', 'native-cinema-hover-image'); image.alt = '';
             image.src = imageUrl(item, landscape(item), 900);
@@ -243,7 +243,7 @@
             const info = actionIcon('more', 'Mehr Infos', () => openDetails(item.Id, card, art)); info.classList.add('is-more'); actions.append(info);
             const body = element('div', 'native-cinema-hover-body');
             body.append(actions, element('strong', 'native-cinema-hover-name', item.SeriesName || item.Name),
-                element('div', 'native-cinema-hover-meta', mediaFacts(item)), element('div', 'native-cinema-hover-genres', (item.Genres || []).slice(0, 3).join('  ·  ')));
+                element('div', 'native-cinema-hover-meta', mediaFacts(item)), element('div', 'native-cinema-hover-genres', (item.Genres || []).slice(0, 3).join('  Â·  ')));
             panel.append(art, body);
             panel.addEventListener('pointerenter', () => clearTimeout(leaveTimer)); panel.addEventListener('pointerleave', leaveHover);
             document.body.append(panel); hover = panel; positionHover(panel, card);
@@ -296,7 +296,9 @@
         let imageSrc;
         if (image?.src) {
             const url = new URL(image.src, location.href);
-            if (url.origin === location.origin && url.pathname.startsWith(base + '/Items/')) imageSrc = url.href;
+            // The authenticated image adapter displays local blob URLs. Reuse
+            // that already loaded artwork while the protected details reload.
+            if (url.origin === location.origin && (url.protocol === 'blob:' || url.pathname.startsWith(base + '/Items/'))) imageSrc = url.href;
         }
         return { rect: rect?.width > 0 && rect?.height > 0 ? rect : null, imageSrc };
     }
@@ -326,7 +328,7 @@
         async function load(append = false) {
             const ownTicket = ++episodeTicket;
             if (!append) { start = 0; rows.replaceChildren(); }
-            more.disabled = true; status.textContent = 'Folgen werden geladen …';
+            more.disabled = true; status.textContent = 'Folgen werden geladen â€¦';
             try {
                 const params = new URLSearchParams({ userId: auth.user, startIndex: String(start), limit: '30', fields: 'Overview', enableImageTypes: 'Primary', excludeLocationTypes: 'Virtual' });
                 if (seasonId) params.set('seasonId', seasonId);
@@ -341,8 +343,8 @@
                     row.append(image, text); row.addEventListener('click', () => { closeDetails(false); playOriginal(episode); }); rows.append(row);
                 }
                 start += data.Items?.length || 0; more.hidden = !data.Items?.length || start >= (data.TotalRecordCount ?? start) || start >= 300;
-                status.textContent = start ? '' : 'Keine Folgen verfügbar.';
-            } catch { if (details === dialog) status.textContent = 'Folgen konnten nicht geladen werden. Die originale Detailseite bleibt verfügbar.'; }
+                status.textContent = start ? '' : 'Keine Folgen verfÃ¼gbar.';
+            } catch { if (details === dialog) status.textContent = 'Folgen konnten nicht geladen werden. Die originale Detailseite bleibt verfÃ¼gbar.'; }
             finally { more.disabled = false; }
         }
         try {
@@ -351,7 +353,7 @@
             const all = element('option', '', 'Alle Staffeln'); all.value = ''; select.append(all);
             for (const season of data.Items || []) if (validId(season.Id)) { const option = element('option', '', season.Name); option.value = season.Id; select.append(option); }
             select.addEventListener('change', () => { seasonId = select.value; load(); }); more.addEventListener('click', () => load(true)); await load();
-        } catch { status.textContent = 'Staffeln konnten nicht geladen werden. Die originale Detailseite bleibt verfügbar.'; }
+        } catch { status.textContent = 'Staffeln konnten nicht geladen werden. Die originale Detailseite bleibt verfÃ¼gbar.'; }
     }
 
     async function openDetails(id, card, trigger) {
@@ -363,8 +365,8 @@
         const dialog = element('dialog', 'native-cinema-info'); dialog.dataset.nativeCinemaOwned = '';
         dialog.cinemaTrigger = trigger?.isConnected ? trigger : currentCard(id, card)?.querySelector('a[href*="#/details?"]');
         dialog.setAttribute('aria-label', 'Filminformationen');
-        const close = actionIcon('close', 'Schließen', () => closeDetails()); close.classList.add('native-cinema-info-close');
-        const status = element('p', 'native-cinema-info-status', 'Informationen werden geladen …'); status.setAttribute('role', 'status');
+        const close = actionIcon('close', 'SchlieÃŸen', () => closeDetails()); close.classList.add('native-cinema-info-close');
+        const status = element('p', 'native-cinema-info-status', 'Informationen werden geladen â€¦'); status.setAttribute('role', 'status');
         const loadingArt = element('div', 'native-cinema-info-art native-cinema-info-loading-art');
         loadingArt.setAttribute('aria-hidden', 'true');
         if (origin.imageSrc) { const image = element('img', 'native-cinema-info-image'); image.alt = ''; image.src = origin.imageSrc; loadingArt.append(image); }
@@ -385,23 +387,23 @@
             const name = element('h2', 'native-cinema-info-name', item.Name); const logo = element('img', 'native-cinema-info-logo'); logo.alt = item.Name; logo.hidden = true;
             if (item.ImageTags?.Logo) { logo.onload = () => { logo.hidden = false; name.classList.add('visually-hidden'); }; logo.src = imageUrl(item, 'Logo', 800); }
             const actions = element('div', 'native-cinema-info-actions');
-            const play = element('button', 'native-cinema-primary', '▶  Abspielen'); play.type = 'button';
+            const play = element('button', 'native-cinema-primary', 'â–¶  Abspielen'); play.type = 'button';
             play.addEventListener('click', () => { closeDetails(false); playOriginal(item, card); }); actions.append(play);
             const favorite = originalButton(id, 'favorite', card);
             if (favorite) actions.append(actionIcon('favorite', favorite.title || 'Favorit umschalten', () => favorite.click()));
             const menu = originalButton(id, 'menu', card);
-            if (menu) actions.append(actionIcon('menu', 'Jellyfin-Kontextmenü öffnen', () => { closeDetails(false); menu.click(); }));
+            if (menu) actions.append(actionIcon('menu', 'Jellyfin-KontextmenÃ¼ Ã¶ffnen', () => { closeDetails(false); menu.click(); }));
             copy.append(logo, name, actions); art.append(image, element('div', 'native-cinema-info-shade'), copy);
             const body = element('div', 'native-cinema-info-body');
             body.append(element('p', 'native-cinema-info-facts', mediaFacts(item)), element('p', 'native-cinema-info-overview', String(item.Overview || '').replace(/<[^>]*>/g, '')));
             if (item.Genres?.length) body.append(element('p', 'native-cinema-info-genres', 'Genres: ' + item.Genres.join(', ')));
             const actors = (item.People || []).filter(person => ['Actor', 'Director'].includes(person.Type)).slice(0, 8).map(person => person.Name);
             if (actors.length) body.append(element('p', 'native-cinema-info-people', 'Besetzung & Mitwirkende: ' + actors.join(', ')));
-            const original = element('a', 'native-cinema-original-details', 'Originale Detailseite öffnen'); original.href = '#/details?id=' + encodeURIComponent(id);
+            const original = element('a', 'native-cinema-original-details', 'Originale Detailseite Ã¶ffnen'); original.href = '#/details?id=' + encodeURIComponent(id);
             original.addEventListener('click', () => closeDetails(false)); body.append(original);
             dialog.append(art, body);
             if (item.Type === 'Series') episodeSection(dialog, item, auth, ticket);
-        } catch { if (details === dialog) status.textContent = 'Informationen konnten nicht geladen werden. Bitte schließe das Fenster und versuche es erneut.'; }
+        } catch { if (details === dialog) status.textContent = 'Informationen konnten nicht geladen werden. Bitte schlieÃŸe das Fenster und versuche es erneut.'; }
     }
 
     function cardClick(event) {
@@ -431,14 +433,14 @@
             logo.src = imageUrl(artwork, 'Logo', 800);
         }
         const facts = [artwork.Genres?.slice(0, 2).join(' / '), artwork.ProductionYear, artwork.OfficialRating].filter(Boolean);
-        const meta = element('div', 'native-cinema-hero-meta', facts.join('  ·  '));
+        const meta = element('div', 'native-cinema-hero-meta', facts.join('  Â·  '));
         const text = element('p', 'native-cinema-hero-overview');
         // Metadata is text, never a second HTML document or remote resource.
         if (artwork.Overview) text.textContent = String(artwork.Overview).replace(/<[^>]*>/g, '');
         const actions = element('div', 'native-cinema-hero-actions');
         const nativePlay = card.querySelector('button[data-action="play"],button[data-action="resume"]');
         if (nativePlay) {
-            const play = element('button', 'native-cinema-primary', '▶  Abspielen'); play.type = 'button';
+            const play = element('button', 'native-cinema-primary', 'â–¶  Abspielen'); play.type = 'button';
             play.disabled = nativePlay.disabled;
             play.addEventListener('click', () => {
                 if (ownGeneration !== generation || session()?.key !== sessionKey) return;
