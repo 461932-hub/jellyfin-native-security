@@ -14,7 +14,7 @@ liegen unter `server/`; `SOURCE-PATCH.diff` zeigt die Aenderungen gegen
 ## Installation ueber CasaOS
 
 Nach einem erfolgreichen Lauf unter **Actions** steht das Image unter
-`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview11` bereit.
+`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview12` bereit.
 Der Kontoinhaber muss das GitHub-Containerpaket einmal unter **Packages ->
 jellyfin-native-security -> Package settings -> Change visibility -> Public**
 oeffentlich lesbar machen. Ein oeffentliches Repository allein aendert die
@@ -98,8 +98,11 @@ Eine Verknuepfung zur originalen Detailseite bleibt im Fenster vorhanden.
 Oeffnen und Schliessen verwenden jetzt die Bewegungsablaeufe aus dem Cinema-
 Projekt. Kleine Vorschauen schrumpfen zur Kachel zurueck, grosse Infofenster
 zur sichtbaren Ausgangskachel. Auch ein Schliessen waehrend des Oeffnens geht
-von der gerade sichtbaren Groesse aus. Escape, X und Hintergrundklick bleiben
-verfuegbar. Abmeldung, Seitenwechsel und Wiedergabestart entfernen die eigenen
+von der gerade sichtbaren Groesse aus. Beim Wechsel zur Nachbarkachel beginnt
+das Schrumpfen sofort, waehrend die neue Kachel ihre eigene Oeffnungsverzoegerung
+behaelt. Das gilt auch fuer Nachbarn in der Reihe darunter. Beim Weiterbewegen
+werden ausstehende Oeffnungen verworfen; Knopfe in der offenen Vorschau bleiben
+bedienbar. Escape, X und Hintergrundklick bleiben verfuegbar. Abmeldung, Seitenwechsel und Wiedergabestart entfernen die eigenen
 Vorschauen sofort; reduzierte Bewegung deaktiviert die Uebergaenge.
 
 Das grosse Vorschaubild nutzt die verfuegbare Fensterhoehe abzueglich der
@@ -146,7 +149,7 @@ vorhandene TV-Direct-Play-Pfad wird nicht umgestellt.
 ## Build und Nachweise
 
 ```sh
-docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview11 .
+docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview12 .
 ```
 
 Der Build prueft die Quellpruefsummen, kompiliert die Linux-x64-Laufzeit und

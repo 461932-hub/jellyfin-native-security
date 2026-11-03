@@ -7,6 +7,7 @@ const http = require('node:http');
 const { chromium } = require(process.env.NATIVE_CINEMA_PLAYWRIGHT || 'playwright-core');
 const assets = path.join(__dirname, '../web');
 const id = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', user = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+const neighborId = '99999999999999999999999999999999';
 const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jXioAAAAASUVORK5CYII=', 'base64');
 const requests = [], checks = [];
 let fixtureMode = 'allowed', seriesInformation = false, server, browser, diagnosticPage;
@@ -31,9 +32,11 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
         if (url.pathname.includes('/Users/') && url.pathname.endsWith('/Items')) {
             const permitted = fixtureMode === 'allowed' && req.headers.authorization === 'MediaBrowser Token="fixture-token"';
             res.writeHead(permitted ? 200 : 403, { 'Content-Type': 'application/json' });
-            const send = () => res.end(JSON.stringify({ Items: permitted ? [{ Id: id, Name: 'Native fixture title', Type: 'Movie',
+            const selected = (url.searchParams.get('Ids') || id).split(',').filter(value => [id, neighborId].includes(value));
+            const send = () => res.end(JSON.stringify({ Items: permitted ? selected.map(value => ({ Id: value,
+                Name: value === id ? 'Native fixture title' : 'Neighbor fixture title', Type: 'Movie',
                 Overview: '<img src="https://outside.invalid/leak" onerror="window.injected=1">Safe description',
-                ProductionYear: 2026, Genres: ['Drama'], ImageTags: { Thumb: 'fixture' }, BackdropImageTags: ['fixture'] }] : [] }));
+                ProductionYear: 2026, Genres: ['Drama'], ImageTags: { Thumb: 'fixture' }, BackdropImageTags: ['fixture'] })) : [] }));
             if (holdInitialMetadata) pendingMetadata.push(send);
             else setTimeout(send, 250);
             return;
@@ -293,6 +296,44 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
         await page.setViewportSize({width:1920,height:1080});await page.waitForTimeout(150);
         const resizedTarget=await snapTarget();assert(Math.abs(await page.evaluate(()=>scrollY)-resizedTarget-200)<2);
         note('Resizing while browsing preserves the catalogue offset at ' + (base || '/'));
+        await page.setViewportSize({width:1400,height:900});
+        await page.goto(origin + base + '/web/index.html?hover-neighbors=1#/home');
+        await page.locator('.native-cinema-hero').waitFor({state:'visible'});
+        await page.addStyleTag({content:'.native-cinema-hero{display:none!important}#indexPage{min-height:800px}'});
+        await page.evaluate(neighbor=>{
+            const original=document.querySelector('.card');original.id='hover-source';
+            Object.assign(original.style,{position:'fixed',left:'80px',top:'100px'});
+            for(const [name,left,top] of [['hover-right','450px','100px'],['hover-below','80px','550px']]){
+                const card=original.cloneNode(true);for(const child of card.querySelectorAll('[id]'))child.removeAttribute('id');
+                card.id=name;card.dataset.id=neighbor;card.querySelector('a').href='#/details?id='+neighbor;
+                Object.assign(card.style,{left,top});original.parentElement.append(card);
+            }
+            scrollTo(0,0);
+        },neighborId);
+        const waitForHover=async name=>{
+            const panel=page.locator('.native-cinema-hover:not(.is-closing)').filter({has:page.locator('.native-cinema-hover-name',{hasText:name})});
+            await panel.waitFor({state:'visible'});
+            await panel.evaluate(node=>Promise.all(node.getAnimations({subtree:true}).map(animation=>animation.finished.catch(()=>{}))));
+            return panel;
+        };
+        await page.locator('#hover-source').hover();await waitForHover('Native fixture title');
+        await page.locator('#hover-right').hover();
+        assert.equal(await page.locator('.native-cinema-hover.is-closing').count(),1,'The old preview must start shrinking on neighbor entry, before the next opens');
+        assert.equal(await page.locator('.native-cinema-hover:not(.is-closing)').count(),0);
+        await page.mouse.move(20,20);await page.locator('.native-cinema-hover').waitFor({state:'detached'});
+        await page.waitForTimeout(600);assert.equal(await page.locator('.native-cinema-hover').count(),0);
+        note('Entering a horizontal neighbor immediately shrinks the old preview; leaving cancels the next opening at ' + (base || '/'));
+        await page.locator('#hover-source').hover();await waitForHover('Native fixture title');
+        await page.locator('#hover-below').hover();
+        assert.equal(await page.locator('.native-cinema-hover.is-closing').count(),1,'A lower-row neighbor must also close the previous preview immediately');
+        const nextHover=await waitForHover('Neighbor fixture title');
+        assert.equal(await page.locator('.native-cinema-hover:not(.is-closing)').count(),1);
+        assert.equal(await page.locator('.native-cinema-hover.is-closing').count(),0);
+        note('Moving down to a neighboring film closes the old card and opens exactly one new preview at ' + (base || '/'));
+        await nextHover.getByRole('button',{name:'Mehr Infos',exact:true}).hover();
+        await page.waitForTimeout(180);assert.equal(await nextHover.count(),1);
+        await page.mouse.move(20,20);await page.locator('.native-cinema-hover').waitFor({state:'detached'});
+        note('Moving onto preview controls keeps them usable, then leaving closes with the original animation at ' + (base || '/'));
         await page.goto(origin + base + '/web/index.html?cinema=off');
         assert.equal(await page.locator('.native-cinema-hero').count(), 0);
         assert.equal(await page.locator('html').getAttribute('class'), 'native-cinema-disabled');

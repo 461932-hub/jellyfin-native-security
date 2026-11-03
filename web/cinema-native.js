@@ -28,7 +28,7 @@
     const cache = new Map(), enhanced = new WeakMap();
     let sessionKey = '', generation = 0, hero = null, heroKey = '', timer;
     let pending = false, followup = false, retryAfter = 0, controller = new AbortController();
-    let hover = null, hoverCard = null, hoverTimer, leaveTimer, hoverTicket = 0;
+    let hover = null, hoverCard = null, pendingHoverCard = null, hoverTimer, leaveTimer, hoverTicket = 0;
     let lastPointer = null, scrollHoverTimer, hoverOpening = null, hoverClosing = null;
     let heroSnap = null;
     let details = null, detailsAbort = null, detailsTicket = 0;
@@ -304,7 +304,7 @@
         hoverClosing = null; entry.motion.cancel(); entry.panel.remove();
     }
     function hideHover(smooth = false) {
-        clearTimeout(hoverTimer); clearTimeout(leaveTimer); hoverTicket++;
+        clearTimeout(hoverTimer); clearTimeout(leaveTimer); pendingHoverCard = null; hoverTicket++;
         const panel = hover, card = hoverCard, opening = hoverOpening;
         hover = null; hoverCard = null; hoverOpening = null;
         if (hoverClosing && (!smooth || panel)) finishHoverClosing(hoverClosing);
@@ -321,7 +321,12 @@
             motion.finished.then(() => finishHoverClosing(entry), () => finishHoverClosing(entry));
         } else panel.remove();
     }
-    function leaveHover() { clearTimeout(leaveTimer); leaveTimer = setTimeout(() => hideHover(true), 140); }
+    function leaveHover() {
+        const panel = hover;
+        if (!panel) return;
+        clearTimeout(leaveTimer);
+        leaveTimer = setTimeout(() => { if (hover === panel) hideHover(true); }, 140);
+    }
     function positionHover(panel, card) {
         const rect = card.querySelector('.cardScalable')?.getBoundingClientRect() || card.getBoundingClientRect();
         const width = Math.min(innerWidth - 24, Math.max(320, Math.min(480, rect.width * 1.5)));
@@ -334,11 +339,12 @@
         return growCard(panel, card.querySelector('.cardScalable') || card);
     }
     async function showHover(card) {
+        if (pendingHoverCard !== card) return;
         const auth = session(), ticket = ++hoverTicket, ownGeneration = generation;
-        if (!auth || details || !card.isConnected) return;
-        if ([...document.querySelectorAll('.MuiPopover-root')].some(node => !node.classList.contains('MuiModal-hidden') && node.getAttribute('aria-hidden') !== 'true'
-            && [...node.querySelectorAll('.MuiPaper-root')].some(paper => getComputedStyle(paper).visibility !== 'hidden' && Number(getComputedStyle(paper).opacity) > .1))) return;
         try {
+            if (!auth || details || !card.isConnected) return;
+            if ([...document.querySelectorAll('.MuiPopover-root')].some(node => !node.classList.contains('MuiModal-hidden') && node.getAttribute('aria-hidden') !== 'true'
+                && [...node.querySelectorAll('.MuiPaper-root')].some(paper => getComputedStyle(paper).visibility !== 'hidden' && Number(getComputedStyle(paper).opacity) > .1))) return;
             const item = cache.get(card.dataset.id) || (await metadata([card.dataset.id], auth))[0];
             if (!item || ticket !== hoverTicket || ownGeneration !== generation || session()?.key !== auth.key || !card.isConnected) return;
             hideHover(); hoverCard = card;
@@ -361,22 +367,29 @@
             document.body.append(panel); hover = panel; positionHover(panel, card);
             hoverOpening = animateHover(panel, card);
         } catch { /* Keep native cards usable if extra metadata is unavailable. */ }
+        finally { if (ticket === hoverTicket && pendingHoverCard === card) pendingHoverCard = null; }
     }
     function pointerOver(event) {
         if (!matchMedia('(hover: hover) and (pointer: fine)').matches || details || event.pointerType === 'touch') return;
-        if (event.target.closest?.('.native-cinema-hover')) { clearTimeout(leaveTimer); return; }
+        if (event.target.closest?.('.native-cinema-hover')) { if (hover?.contains(event.target)) clearTimeout(leaveTimer); return; }
         const card = event.target.closest?.('.card[data-id]');
         if (!card || !validId(card.dataset.id) || !['Movie', 'Series', 'Episode'].includes(card.dataset.type) || !activePage()?.contains(card)) return;
         if (document.querySelector('dialog[open]')) return;
-        clearTimeout(leaveTimer);
-        if (card === hoverCard && hover?.isConnected) return;
-        clearTimeout(hoverTimer); hoverTimer = setTimeout(() => showHover(card), 550);
+        if (card === hoverCard && hover?.isConnected) { clearTimeout(leaveTimer); return; }
+        if (card === pendingHoverCard) return;
+        // Like Cinema's schedule(): shrink the previous preview immediately,
+        // then wait for this card's independent opening deadline.
+        hideHover(true); pendingHoverCard = card;
+        hoverTimer = setTimeout(() => { hoverTimer = null; showHover(card); }, 550);
     }
     function pointerOut(event) {
         const card = event.target.closest?.('.card[data-id]');
         if (!card) return;
-        if (card.contains(event.relatedTarget) || event.relatedTarget?.closest?.('.native-cinema-hover')) return;
-        clearTimeout(hoverTimer); leaveHover();
+        if (card.contains(event.relatedTarget) || hover?.contains(event.relatedTarget)) return;
+        if (pendingHoverCard === card) {
+            clearTimeout(hoverTimer); hoverTimer = null; pendingHoverCard = null; hoverTicket++;
+        }
+        if (card === hoverCard) leaveHover();
     }
 
     async function readJson(path, auth, signal) {
