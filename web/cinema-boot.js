@@ -34,33 +34,65 @@
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadingScreen, { once: true });
     else loadingScreen();
 
-    function thumbnailDefault(targetHash = location.hash) {
+    // Jellyfin 12.4's native library routes share these view-settings keys.
+    // Seed every tab before React mounts it, including tabs changed by pushState.
+    const libraryRoutes = new Set(['/books', '/boxsets', '/movies', '/music', '/tv',
+        '/homevideos', '/musicvideos', '/playlists', '/mixed', '/livetv']);
+    const libraryViews = new Set(['albums', 'albumartists', 'artists', 'authors',
+        'books', 'channels', 'collections', 'episodes', 'favorites', 'folders',
+        'genres', 'mixed', 'movies', 'musicvideos', 'photoalbums', 'photos',
+        'playlists', 'recordings', 'series', 'songs', 'studios', 'suggestions',
+        'upcoming', 'videos']);
+    const validContext = value => value === 'null' || value === 'livetv' ||
+        /^[a-f0-9]{32}$/i.test(value) || /^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value);
+    function migrateView(view, context) {
         try {
-            const hash = targetHash.slice(1), route = hash.split('?')[0];
-            if (!['/tv', '/movies'].includes(route)) return;
-            const params = new URLSearchParams(hash.split('?')[1] || '');
-            const library = params.get('topParentId');
-            if (library && !/^[a-f0-9]{32}$/i.test(library.replaceAll('-', ''))) return;
-            // This is Jellyfin's own useLocalStorage view-settings key.
-            const key = (route === '/tv' ? 'series' : 'movies') + ' - ' + library;
-            const marker = 'native-cinema-thumb-default-v1:' + key;
+            const key = view + ' - ' + context;
+            const marker = 'native-cinema-thumb-default-v2:' + key;
             const raw = localStorage.getItem(key);
             if (raw && raw.length > 16384) return;
             const value = raw ? JSON.parse(raw) : {};
             if (!value || Array.isArray(value) || typeof value !== 'object') return;
-            if (localStorage.getItem(marker) && Array.isArray(value.SortBy)) return;
-            // Jellyfin reads a saved record as a complete view configuration,
-            // so retain its native default schema when creating a new record.
+            if (raw && localStorage.getItem(marker)) return;
+            // A saved record must contain the complete native renderer schema.
+            // Preserve sorting, filters, list layout and an existing custom image
+            // choice. Only the previous Primary default changes once to Thumb.
+            const sortBy = view === 'episodes' ? ['SeriesSortName'] : ['SortName'];
             const settings = { ShowTitle: true, ShowYear: true, CardLayout: false,
-                SortBy: ['SortName'], SortOrder: 'Ascending', StartIndex: 0,
-                ...value, ImageType: 'Thumb', ViewMode: 'grid' };
-            if (!Array.isArray(settings.SortBy)) settings.SortBy = ['SortName'];
+                SortBy: sortBy, SortOrder: 'Ascending', StartIndex: 0,
+                ViewMode: view === 'songs' ? 'list' : 'grid', ...value };
+            if (!settings.ImageType || settings.ImageType === 'Primary') settings.ImageType = 'Thumb';
+            if (!Array.isArray(settings.SortBy)) settings.SortBy = sortBy;
             const next = JSON.stringify(settings);
-            localStorage.setItem(key, next);
+            if (next !== raw) {
+                localStorage.setItem(key, next);
+                window.dispatchEvent(new StorageEvent('storage', { key, oldValue: raw,
+                    newValue: next, storageArea: localStorage }));
+            }
             localStorage.setItem(marker, '1');
-            window.dispatchEvent(new StorageEvent('storage', { key, newValue: next, storageArea: localStorage }));
-        } catch { /* Keep the native defaults if storage is not available. */ }
+        } catch { /* Unavailable or invalid storage keeps its native behavior. */ }
     }
+    function thumbnailDefault(targetHash = location.hash) {
+        try {
+            const hash = targetHash.slice(1), route = hash.split('?')[0];
+            if (!libraryRoutes.has(route)) return;
+            const params = new URLSearchParams(hash.split('?')[1] || '');
+            const context = params.get('collectionType') === 'livetv' ? 'livetv' :
+                (params.get('topParentId') || 'null');
+            if (!validContext(context)) return;
+            for (const view of libraryViews) migrateView(view, context);
+        } catch { /* Unrelated routes keep their normal behavior. */ }
+    }
+    // Existing library settings (including the old v1 marker) are migrated even
+    // if the first page is Home. Never read unrelated storage such as credentials.
+    try {
+        const keys = Object.keys(localStorage);
+        for (const key of keys) {
+            const match = /^([a-z]+) - ([a-f0-9-]+|null|livetv)$/i.exec(key);
+            if (match && libraryViews.has(match[1]) && validContext(match[2])) migrateView(match[1], match[2]);
+        }
+        for (const view of libraryViews) migrateView(view, 'null');
+    } catch { /* Browser storage is optional. */ }
     thumbnailDefault();
     window.addEventListener('hashchange', () => thumbnailDefault(), { capture: true });
     window.addEventListener('popstate', () => thumbnailDefault(), { capture: true });

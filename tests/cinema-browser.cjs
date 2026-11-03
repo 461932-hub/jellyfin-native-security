@@ -156,13 +156,66 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
         await page.evaluate(() => {
             const key='series - dddddddddddddddddddddddddddddddd';
             localStorage.setItem(key,JSON.stringify({ImageType:'Primary',SortBy:['DateCreated'],ShowTitle:false}));
+            localStorage.setItem('native-cinema-thumb-default-v1:'+key,'1');
         });
         await page.goto(origin + base + '/web/index.html?layout-check=1#/tv?topParentId=dddddddddddddddddddddddddddddddd');
         const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('series - dddddddddddddddddddddddddddddddd')));
         assert.equal(saved.ImageType,'Thumb');assert.equal(saved.ViewMode,'grid');assert.deepEqual(saved.SortBy,['DateCreated']);assert.equal(saved.ShowTitle,false);
         await page.evaluate(()=>{const key='series - dddddddddddddddddddddddddddddddd';const saved=JSON.parse(localStorage.getItem(key));saved.ImageType='Banner';localStorage.setItem(key,JSON.stringify(saved));});
         await page.reload();assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('series - dddddddddddddddddddddddddddddddd')).ImageType),'Banner');
-        note('Thumbnail becomes the native default once while sorting and later choices remain intact at ' + (base || '/'));
+        note('Existing v1 Primary settings migrate once while sorting and later Banner choices remain intact at ' + (base || '/'));
+        await page.evaluate(()=>{const key='series - dddddddddddddddddddddddddddddddd';const saved=JSON.parse(localStorage.getItem(key));saved.ImageType='Primary';localStorage.setItem(key,JSON.stringify(saved));});
+        await page.reload();assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('series - dddddddddddddddddddddddddddddddd')).ImageType),'Primary');
+        note('A later deliberate Primary selection survives reload instead of being locked to thumbnails at ' + (base || '/'));
+        await page.evaluate(()=>{
+            localStorage.setItem('collections - 11111111111111111111111111111111',JSON.stringify({ImageType:'Primary',ViewMode:'list',SortBy:['DateCreated'],SortOrder:'Descending',ShowTitle:false,ShowYear:false,Filters:{IsPlayed:true}}));
+            localStorage.setItem('musicvideos - 22222222222222222222222222222222',JSON.stringify({ImageType:'Banner',SortBy:['SortName']}));
+            localStorage.setItem('movies - 33333333333333333333333333333333','{broken');
+            localStorage.setItem('photos - 44444444444444444444444444444444',' '.repeat(16385));
+            localStorage.setItem('unrelated-user-preference','keep-this-value');
+        });
+        await page.goto(origin + base + '/web/index.html?preferences-migration=1#/home');
+        const migrated=await page.evaluate(()=>({
+            collection:JSON.parse(localStorage.getItem('collections - 11111111111111111111111111111111')),
+            musicvideos:JSON.parse(localStorage.getItem('musicvideos - 22222222222222222222222222222222')),
+            broken:localStorage.getItem('movies - 33333333333333333333333333333333'),
+            oversized:localStorage.getItem('photos - 44444444444444444444444444444444').length,
+            unrelated:localStorage.getItem('unrelated-user-preference')
+        }));
+        assert.equal(migrated.collection.ImageType,'Thumb');assert.equal(migrated.collection.ViewMode,'list');
+        assert.deepEqual(migrated.collection.SortBy,['DateCreated']);assert.equal(migrated.collection.SortOrder,'Descending');
+        assert.equal(migrated.collection.ShowTitle,false);assert.equal(migrated.collection.ShowYear,false);assert.deepEqual(migrated.collection.Filters,{IsPlayed:true});
+        assert.equal(migrated.musicvideos.ImageType,'Banner');
+        assert.equal(migrated.broken,'{broken');assert.equal(migrated.oversized,16385);assert.equal(migrated.unrelated,'keep-this-value');
+        note('Home entry migrates existing library defaults without losing filters, custom layouts or unrelated preferences at ' + (base || '/'));
+        const routeContexts=await page.evaluate(()=>{
+            const routes=['books','boxsets','movies','music','tv','homevideos','musicvideos','playlists','mixed','livetv'];
+            return routes.map((route,i)=>{
+                const library=(i+10).toString(16).padStart(32,'0'),context=route==='livetv'?'livetv':library;
+                const link=document.createElement('a');link.href='#/'+route+'?topParentId='+library+'&tab=6'+(route==='livetv'?'&collectionType=livetv':'');
+                link.addEventListener('click',event=>event.preventDefault());document.body.append(link);link.click();link.remove();
+                return {route,collection:JSON.parse(localStorage.getItem('collections - '+context)),
+                    favorites:JSON.parse(localStorage.getItem('favorites - '+context)),
+                    episodes:JSON.parse(localStorage.getItem('episodes - '+context)),
+                    songs:JSON.parse(localStorage.getItem('songs - '+context))};
+            });
+        });
+        for(const record of routeContexts){
+            assert.equal(record.collection.ImageType,'Thumb',record.route);assert.equal(record.favorites.ImageType,'Thumb',record.route);
+            assert.equal(record.collection.ViewMode,'grid');assert.deepEqual(record.collection.SortBy,['SortName']);
+            assert.deepEqual(record.episodes.SortBy,['SeriesSortName']);assert.equal(record.songs.ViewMode,'list');
+        }
+        assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('favorites - null')).ImageType),'Thumb');
+        note('All native library routes prepare thumbnail tabs before navigation, retaining native episode sorting and song lists at ' + (base || '/'));
+        const ignored=await page.evaluate(()=>{
+            const target='66666666666666666666666666666666';
+            for(const href of ['https://outside.invalid/web/index.html#/tv?topParentId='+target,'#/details?id='+target,'#/movies?topParentId=bad-library-id']){
+                const link=document.createElement('a');link.href=href;link.addEventListener('click',event=>event.preventDefault());document.body.append(link);link.click();link.remove();
+            }
+            return {foreign:localStorage.getItem('series - '+target),invalid:localStorage.getItem('movies - bad-library-id')};
+        });
+        assert.deepEqual(ignored,{foreign:null,invalid:null});assert.deepEqual(external,[]);
+        note('Foreign links, media details and malformed library IDs cannot create library view defaults at ' + (base || '/'));
         await page.goto(origin + base + '/web/index.html#/movies?topParentId=dddddddddddddddddddddddddddddddd');
         const initial=await page.evaluate(()=>JSON.parse(localStorage.getItem('movies - dddddddddddddddddddddddddddddddd')));
         assert(initial.SortBy.includes('SortName'));assert.equal(initial.SortOrder,'Ascending');assert.equal(initial.StartIndex,0);assert.equal(initial.ShowTitle,true);assert.equal(initial.ShowYear,true);assert.equal(initial.CardLayout,false);assert.equal(initial.ImageType,'Thumb');

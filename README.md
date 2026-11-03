@@ -14,7 +14,7 @@ liegen unter `server/`; `SOURCE-PATCH.diff` zeigt die Aenderungen gegen
 ## Installation ueber CasaOS
 
 Nach einem erfolgreichen Lauf unter **Actions** steht das Image unter
-`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview10` bereit.
+`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview11` bereit.
 Der Kontoinhaber muss das GitHub-Containerpaket einmal unter **Packages ->
 jellyfin-native-security -> Package settings -> Change visibility -> Public**
 oeffentlich lesbar machen. Ein oeffentliches Repository allein aendert die
@@ -112,9 +112,15 @@ Ein Groessenwechsel erhaelt den aktuellen Abstand im Katalog.
 
 Die Startseite behaelt ihre nativen horizontalen Reihen und Schieberegler;
 Filme und Serien behalten das feste Bibliotheksraster. Der vorhandene native
-Ansichtswert fuer Filme und Serien wird einmal pro Bibliothek und Browser auf
-Kachelansicht / Miniatur gesetzt. Sortierung und weitere Einstellungen bleiben
-erhalten, ebenso eine spaeter bewusst geaenderte Ansicht.
+Bildtyp wird in den nativen Bibliotheksansichten standardmaessig auf Miniatur
+statt Primaer gesetzt, einschliesslich Sammlungen, Favoriten und weiterer Tabs.
+Bestehende Primaer-Einstellungen werden einmal pro Ansicht und Browser uebernommen,
+auch wenn die fruehere Filme-/Serien-Vorgabe schon gespeichert war. Sortierung,
+Filter, Titelanzeige und bewusst eingestellte Listenlayouts bleiben erhalten.
+Andere vorhandene Bildtypen und jede spaetere manuelle Auswahl (auch Primaer)
+bleiben erhalten. Neue Folgenansichten behalten ihre native Seriensortierung,
+Lieder ihre Listenansicht. Die Vorgabe wird vor dem ersten nativen Rendern gesetzt
+und gilt fuer diesen Webclient; native TV-Apps haben eigene Ansichtseinstellungen.
 
 Das Einstiegdokument laedt die Cinema-Startlogik und das CSS vor den normalen
 Clientskripten. Eine passende Cinema-Ladeansicht reserviert den Platz, bis die
@@ -140,7 +146,7 @@ vorhandene TV-Direct-Play-Pfad wird nicht umgestellt.
 ## Build und Nachweise
 
 ```sh
-docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview10 .
+docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview11 .
 ```
 
 Der Build prueft die Quellpruefsummen, kompiliert die Linux-x64-Laufzeit und
