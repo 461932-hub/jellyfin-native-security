@@ -93,7 +93,45 @@
         }
         for (const view of libraryViews) migrateView(view, 'null');
     } catch { /* Browser storage is optional. */ }
+    function alphabetPage(targetHash = location.hash) {
+        const hash = targetHash.slice(1), route = hash.split('?')[0];
+        const params = new URLSearchParams(hash.split('?')[1] || '');
+        const context = params.get('collectionType') === 'livetv' ? 'livetv' : (params.get('topParentId') || 'null');
+        const library = libraryRoutes.has(route) && validContext(context) ? context : null;
+        return { key: route + ':' + library + ':' + (params.get('tab') || '0'), library };
+    }
+    function clearAlphabet(context) {
+        if (context === null) return;
+        for (const view of libraryViews) {
+            try {
+                const key = view + ' - ' + context, raw = localStorage.getItem(key);
+                if (!raw || raw.length > 16384) continue;
+                const value = JSON.parse(raw);
+                if (!value || Array.isArray(value) || typeof value !== 'object' || !value.Alphabet) continue;
+                const next = JSON.stringify({ ...value, Alphabet: null, StartIndex: 0 });
+                localStorage.setItem(key, next);
+                window.dispatchEvent(new StorageEvent('storage', { key, oldValue: raw,
+                    newValue: next, storageArea: localStorage }));
+            } catch { /* Other native view preferences remain intact. */ }
+        }
+    }
+    let previousAlphabetPage = null;
+    function syncAlphabetPage() {
+        const next = alphabetPage();
+        if (previousAlphabetPage?.key === next.key) return;
+        // Track committed routes, so an information popup that prevents link
+        // navigation does not unexpectedly clear the current letter filter.
+        const previous = previousAlphabetPage; previousAlphabetPage = next;
+        if (previous) clearAlphabet(previous.library);
+        clearAlphabet(next.library);
+    }
+    window.__nativeCinemaRouteChanged = syncAlphabetPage;
     thumbnailDefault();
+    syncAlphabetPage();
+    window.addEventListener('hashchange', syncAlphabetPage, { capture: true });
+    window.addEventListener('popstate', syncAlphabetPage, { capture: true });
+    // Defer past the whole click dispatch, including native router/default handlers.
+    document.addEventListener('click', () => setTimeout(syncAlphabetPage, 0), { capture: true });
     window.addEventListener('hashchange', () => thumbnailDefault(), { capture: true });
     window.addEventListener('popstate', () => thumbnailDefault(), { capture: true });
     document.addEventListener('click', event => {

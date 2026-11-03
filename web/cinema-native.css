@@ -145,6 +145,8 @@ html:not(.native-cinema-disabled) .verticalSection { margin-bottom: 30px; }
 html:not(.native-cinema-disabled) #homeTab .homeSectionsContainer > .verticalSection:has(.card[data-type="CollectionFolder"]) { display: none !important; }
 html:not(.native-cinema-disabled) .cardText bdi { display: block; overflow: hidden; text-overflow: ellipsis; }
 html:not(.native-cinema-disabled):not(.native-cinema-catalog-visible) .mainAnimatedPage:has(> .native-cinema-hero) .alphaPicker-fixed-right { visibility: hidden; }
+html:not(.native-cinema-disabled) .alphaPicker-fixed-right :is(.MuiToggleButton-root.Mui-selected,.alphaPickerButton-selected) { background-color: #e50914 !important; color: #fff !important; font-weight: 700; }
+html:not(.native-cinema-disabled) .alphaPicker-fixed-right :is(.MuiToggleButton-root.Mui-selected,.alphaPickerButton-selected):hover { background-color: #b20710 !important; }
 
 /* Native detail pages retain all selectors and action buttons. */
 html:not(.native-cinema-disabled) .detailPageWrapperContainer { background: #181818 !important; }

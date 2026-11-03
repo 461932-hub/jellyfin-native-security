@@ -761,7 +761,7 @@
         finally { pending = false; if (followup) { followup = false; schedule(); } }
     }
 
-    function schedule() { clearTimeout(timer); timer = setTimeout(refresh, 140); }
+    function schedule() { window.__nativeCinemaRouteChanged?.(); clearTimeout(timer); timer = setTimeout(refresh, 140); }
     function scroll() {
         hideHover();
         clearTimeout(scrollHoverTimer);

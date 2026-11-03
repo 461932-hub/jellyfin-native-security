@@ -14,7 +14,7 @@ liegen unter `server/`; `SOURCE-PATCH.diff` zeigt die Aenderungen gegen
 ## Installation ueber CasaOS
 
 Nach einem erfolgreichen Lauf unter **Actions** steht das Image unter
-`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview14` bereit.
+`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview15` bereit.
 Der Kontoinhaber muss das GitHub-Containerpaket einmal unter **Packages ->
 jellyfin-native-security -> Package settings -> Change visibility -> Public**
 oeffentlich lesbar machen. Ein oeffentliches Repository allein aendert die
@@ -135,6 +135,14 @@ bleiben erhalten. Neue Folgenansichten behalten ihre native Seriensortierung,
 Lieder ihre Listenansicht. Die Vorgabe wird vor dem ersten nativen Rendern gesetzt
 und gilt fuer diesen Webclient; native TV-Apps haben eigene Ansichtseinstellungen.
 
+Die native Buchstabenleiste markiert die aktuelle Auswahl in Cinema-Rot. Beim
+Verlassen oder erneuten Aufrufen einer Bibliotheksansicht wird nur der Buchstaben-
+filter aufgehoben und dessen Seitenposition auf den Anfang gesetzt. Das gilt
+auch fuer Wechsel zwischen Bibliotheken/Tabs sowie Browser-Zurueck. Sortierung,
+andere Filter und die ausgewaehlte Darstellung bleiben erhalten. Ein Infofenster,
+das die aktuelle Seite offen laesst, und Aenderungen innerhalb derselben Ansicht
+loeschen die Buchstabenauswahl nicht.
+
 Das Einstiegdokument laedt die Cinema-Startlogik und das CSS vor den normalen
 Clientskripten. Eine passende Cinema-Ladeansicht reserviert den Platz, bis die
 vorbereitete Ansicht bereit ist. Die alte ungestaltete Seite wird dabei nicht
@@ -159,7 +167,7 @@ vorhandene TV-Direct-Play-Pfad wird nicht umgestellt.
 ## Build und Nachweise
 
 ```sh
-docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview14 .
+docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview15 .
 ```
 
 Der Build prueft die Quellpruefsummen, kompiliert die Linux-x64-Laufzeit und

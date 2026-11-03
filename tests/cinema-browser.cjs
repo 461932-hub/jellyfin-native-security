@@ -424,6 +424,57 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
         for(const source of await page.locator('#batch-movie-rail .native-cinema-art').evaluateAll(nodes=>nodes.map(node=>new URL(node.src).pathname)))assert(source.endsWith('/Images/Thumb'));
         assert.deepEqual(external,[]);
         note('Horizontal rail navigation reveals complete movie thumbnails after the bounded row-loading passes at ' + (base || '/'));
+        const alphaLibrary='dddddddddddddddddddddddddddddddd',alphaMovieLibrary='eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+        const seriesViewKey='series - '+alphaLibrary,movieViewKey='movies - '+alphaMovieLibrary;
+        await page.goto(origin + base + '/web/index.html?alpha-route-reset=1#/tv?topParentId='+alphaLibrary);
+        await page.addStyleTag({content:'#alpha-same-route,#alpha-home-route,#alpha-series-route,#alpha-movie-route{position:fixed;left:40px;z-index:1200}#alpha-same-route{top:400px}#alpha-home-route{top:450px}#alpha-series-route{top:500px}#alpha-movie-route{top:550px}'});
+        await page.evaluate(key=>{
+            const settings=JSON.parse(localStorage.getItem(key));
+            Object.assign(settings,{Alphabet:'A',StartIndex:80,SortBy:['DateCreated'],SortOrder:'Descending',ImageType:'Banner',ShowTitle:false,Filters:{IsPlayed:true}});
+            localStorage.setItem(key,JSON.stringify(settings));
+            const picker=document.createElement('div');picker.className='alphaPicker-fixed-right';picker.id='alpha-style-probe';
+            const selected=document.createElement('button');selected.className='MuiToggleButton-root Mui-selected';selected.textContent='A';picker.append(selected);document.body.append(picker);
+        },seriesViewKey);
+        assert.equal(await page.locator('#alpha-style-probe button').evaluate(node=>getComputedStyle(node).backgroundColor),'rgb(229, 9, 20)');
+        note('Selected alphabet controls use the Cinema red highlight at ' + (base || '/'));
+        await page.locator('#original-details').dispatchEvent('click');await page.locator('.native-cinema-info').waitFor({state:'visible'});
+        assert.equal(await page.evaluate(key=>JSON.parse(localStorage.getItem(key)).Alphabet,seriesViewKey),'A');
+        await page.keyboard.press('Escape');await page.locator('.native-cinema-info').waitFor({state:'detached'});
+        await page.evaluate(()=>{
+            const button=document.createElement('button');button.id='alpha-same-route';button.textContent='Same library';
+            button.onclick=()=>history.replaceState(null,'',location.pathname+location.search+'#/tv?topParentId=dddddddddddddddddddddddddddddddd&tab=0&presentation=grid');document.body.append(button);
+        });
+        await page.locator('#alpha-same-route').click();
+        assert.equal(await page.evaluate(key=>JSON.parse(localStorage.getItem(key)).Alphabet,seriesViewKey),'A');
+        note('Same-library changes and prevented detail links keep the active alphabet filter at ' + (base || '/'));
+        await page.evaluate(()=>{
+            const button=document.createElement('button');button.id='alpha-home-route';button.textContent='Home';
+            button.onclick=()=>history.pushState(null,'',location.pathname+location.search+'#/home');document.body.append(button);
+        });
+        await page.locator('#alpha-home-route').click();
+        await page.waitForFunction(key=>JSON.parse(localStorage.getItem(key)).Alphabet===null,seriesViewKey);
+        const cleared=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),seriesViewKey);
+        assert.equal(cleared.Alphabet,null);assert.equal(cleared.StartIndex,0);assert.deepEqual(cleared.SortBy,['DateCreated']);
+        assert.equal(cleared.SortOrder,'Descending');assert.equal(cleared.ImageType,'Banner');assert.equal(cleared.ShowTitle,false);assert.deepEqual(cleared.Filters,{IsPlayed:true});
+        note('Committed Home navigation resets alphabet and pagination while preserving other native preferences at ' + (base || '/'));
+        await page.evaluate(({seriesKey,movieKey})=>{
+            const series=JSON.parse(localStorage.getItem(seriesKey));series.Alphabet='O';series.StartIndex=40;localStorage.setItem(seriesKey,JSON.stringify(series));
+            localStorage.setItem(movieKey,JSON.stringify({...series,Alphabet:'Z'}));
+            const link=document.createElement('a');link.id='alpha-series-route';link.href='#/tv?topParentId=dddddddddddddddddddddddddddddddd';link.textContent='Series';document.body.append(link);
+        },{seriesKey:seriesViewKey,movieKey:movieViewKey});
+        await page.locator('#alpha-series-route').click();await page.waitForFunction(key=>JSON.parse(localStorage.getItem(key)).Alphabet===null,seriesViewKey);
+        await page.evaluate(key=>{
+            const saved=JSON.parse(localStorage.getItem(key));saved.Alphabet='A';localStorage.setItem(key,JSON.stringify(saved));
+            const link=document.createElement('a');link.id='alpha-movie-route';link.href='#/movies?topParentId=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';link.textContent='Movies';document.body.append(link);
+        },seriesViewKey);
+        await page.locator('#alpha-movie-route').click();
+        await page.waitForFunction(keys=>keys.every(key=>JSON.parse(localStorage.getItem(key)).Alphabet===null),[seriesViewKey,movieViewKey]);
+        note('Switching Series to Movies clears both the outgoing letter and an older saved incoming letter at ' + (base || '/'));
+        await page.evaluate(key=>{const saved=JSON.parse(localStorage.getItem(key));saved.Alphabet='#';saved.StartIndex=60;localStorage.setItem(key,JSON.stringify(saved));},movieViewKey);
+        await page.goBack();
+        await page.waitForFunction(keys=>keys.every(key=>JSON.parse(localStorage.getItem(key)).Alphabet===null),[seriesViewKey,movieViewKey]);
+        assert.equal(await page.evaluate(key=>JSON.parse(localStorage.getItem(key)).StartIndex,movieViewKey),0);
+        note('Browser Back clears the non-letter selection instead of restoring a stale alphabet filter at ' + (base || '/'));
         await page.goto(origin + base + '/web/index.html?cinema=off');
         assert.equal(await page.locator('.native-cinema-hero').count(), 0);
         assert.equal(await page.locator('html').getAttribute('class'), 'native-cinema-disabled');
