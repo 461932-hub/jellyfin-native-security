@@ -29,7 +29,8 @@
     let sessionKey = '', generation = 0, hero = null, heroKey = '', timer;
     let pending = false, followup = false, retryAfter = 0, controller = new AbortController();
     let hover = null, hoverCard = null, hoverTimer, leaveTimer, hoverTicket = 0;
-    let lastPointer = null, scrollHoverTimer;
+    let lastPointer = null, scrollHoverTimer, hoverOpening = null, hoverClosing = null;
+    let heroSnap = null;
     let details = null, detailsAbort = null, detailsTicket = 0;
 
     function session() {
@@ -48,7 +49,7 @@
         sessionKey = key; generation++; retryAfter = 0;
         controller.abort(); controller = new AbortController(); cache.clear();
         hideHover(); closeDetails(false);
-        hero?.remove(); hero = null; heroKey = '';
+        destroyHeroSnap(); hero?.remove(); hero = null; heroKey = '';
         for (const image of document.querySelectorAll('img.native-cinema-art')) image.remove();
         for (const card of document.querySelectorAll('[data-native-cinema-wide]')) {
             card.removeAttribute('data-native-cinema-wide');
@@ -191,11 +192,136 @@
         return parts.filter(Boolean).join('  ·  ');
     }
 
-    function hideHover() {
-        clearTimeout(hoverTimer); clearTimeout(leaveTimer); hoverTicket++;
-        hover?.remove(); hover = null; hoverCard = null;
+    // Motion rules ported from the existing Cinema presentation (GPL-2.0-or-later).
+    function growCard(panel, trigger, { enabled = true, duration = 420, view = window } = {}) {
+      const skipped = () => ({ finished: Promise.resolve(), cancel() {} });
+      if (!enabled || typeof panel.animate !== 'function' || view.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return skipped();
+      const target = panel.getBoundingClientRect(), source = trigger.getBoundingClientRect();
+      const width = target.width || parseFloat(panel.style.width), height = target.height;
+      if (!(width > 0 && height > 0 && source.width > 0)) return skipped();
+      const left = Number.isFinite(target.left) ? target.left : parseFloat(panel.style.left);
+      const top = Number.isFinite(target.top) ? target.top : parseFloat(panel.style.top);
+      const imageHeight = panel.querySelector('.native-cinema-hover-art')?.getBoundingClientRect().height || width * 9 / 16;
+      const scale = source.width / width;
+      if (scale >= 1) return skipped();
+      const previousOverflow = panel.style.overflow;
+      panel.style.overflow = 'hidden';
+      panel.style.transformOrigin = '0 0';
+      const motion = panel.animate([
+        { transform: `translate(${source.left - left}px, ${source.top - top}px) scale(${scale})`,
+          height: Math.min(height, imageHeight) + 'px' },
+        { transform: 'translate(0px, 0px) scale(1)', height: height + 'px' }
+      ], { duration, easing: 'cubic-bezier(.25,.1,.25,1)' });
+      const body = panel.querySelector('.native-cinema-hover-body');
+      const controls = typeof body?.animate === 'function' ? body.animate([
+        { opacity: 0, transform: 'translateY(-8px)', offset: 0 },
+        { opacity: 0, transform: 'translateY(-8px)', offset: .2 },
+        { opacity: 1, transform: 'translateY(0px)', offset: 1 }
+      ], { duration, easing: 'ease-out' }) : null;
+      controls?.finished.catch(() => {});
+      const cancel = () => { motion.cancel(); controls?.cancel(); panel.style.overflow = previousOverflow; };
+      const finished = motion.finished.then(() => {}, () => {}).finally(cancel);
+      return { finished, cancel };
     }
-    function leaveHover() { clearTimeout(leaveTimer); leaveTimer = setTimeout(hideHover, 170); }
+    function shrinkCard(panel, trigger, { duration = 260, view = window } = {}) {
+      if (typeof panel.animate !== 'function' || view.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return null;
+      // Measure the visible card before cancelling an opening that is still in flight.
+      const current = panel.getBoundingClientRect(), target = trigger.getBoundingClientRect();
+      const width = parseFloat(panel.style.width) || panel.offsetWidth || current.width;
+      if (!(width > 0 && current.width > 0 && current.height > 0 && target.width > 0 && target.height > 0)) return null;
+      const left = parseFloat(panel.style.left), top = parseFloat(panel.style.top);
+      const layoutLeft = Number.isFinite(left) ? left : current.left, layoutTop = Number.isFinite(top) ? top : current.top;
+      const fromScale = current.width / width, toScale = target.width / width;
+      const opacity = node => {
+        const value = parseFloat(view.getComputedStyle?.(node).opacity);
+        return Number.isFinite(value) ? value : 1;
+      };
+      panel.style.transformOrigin = '0 0';
+      const motion = panel.animate([
+        { transform: `translate(${current.left - layoutLeft}px, ${current.top - layoutTop}px) scale(${fromScale})`,
+          height: current.height / fromScale + 'px', opacity: opacity(panel) },
+        { transform: `translate(${target.left - layoutLeft}px, ${target.top - layoutTop}px) scale(${toScale})`,
+          height: target.height / toScale + 'px', opacity: 0 }
+      ], { duration, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' });
+      const body = panel.querySelector('.native-cinema-hover-body');
+      const bodyTransform = body ? view.getComputedStyle?.(body).transform || 'none' : 'none';
+      const controls = typeof body?.animate === 'function' ? body.animate([
+        { opacity: opacity(body), transform: bodyTransform, offset: 0 },
+        { opacity: 0, transform: 'translateY(-8px)', offset: .55 },
+        { opacity: 0, transform: 'translateY(-8px)', offset: 1 }
+      ], { duration, easing: 'ease-out', fill: 'forwards' }) : null;
+      controls?.finished.catch(() => {});
+      const cancel = () => { motion.cancel(); controls?.cancel(); };
+      return { finished: motion.finished.then(() => {}, () => {}), cancel };
+    }
+    function createDialogMotion(dialog,{view=window,source=null,onDismiss=()=>{},finishClose=()=>{}}={}) {
+      let motion=null,timer=null,closing=false,dead=false,generation=0;
+      const reduced=()=>view.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      const canAnimate=()=>typeof dialog.animate==='function'&&!reduced()&&!view.document.hidden;
+      function clear(){view.clearTimeout(timer);timer=null;motion?.cancel();motion=null;}
+      function finish(){if(dead)return;dead=true;++generation;clear();finishClose();}
+      function sourceFrame(rect,target){
+        if(!rect||!(rect.width>0&&rect.height>0&&target.width>0&&target.height>0))return null;
+        if(![rect.left,rect.top,target.left,target.top].every(Number.isFinite))return null;
+        const scale=rect.width/target.width;
+        return{opacity:1,transform:`translate(${rect.left-target.left}px, ${rect.top-target.top}px) scale(${scale})`,
+          clipPath:`inset(0px 0px ${Math.max(0,target.height-rect.height/scale)}px 0px)`};
+      }
+      function open(){
+        if(dead||closing||!canAnimate())return;
+        try{
+          const origin=sourceFrame(source?.rect,dialog.getBoundingClientRect?.()||{});
+          if(origin)dialog.style.transformOrigin='0 0';
+          motion=dialog.animate([origin||{opacity:0,transform:'translateY(24px) scale(.88)'},{opacity:1,transform:'translate(0px, 0px) scale(1)',clipPath:'inset(0px 0px 0px 0px)'}],
+            {duration:origin?800:360,easing:origin?'cubic-bezier(.4,0,.2,1)':'cubic-bezier(.16,1,.3,1)',fill:'both'});
+          const current=motion,ticket=++generation;
+          current.finished.then(()=>{if(!dead&&!closing&&ticket===generation){current.cancel();motion=null;}},()=>{});
+        }catch{clear();}
+      }
+      function close(){
+        if(dead||closing)return;closing=true;onDismiss();dialog.inert=true;dialog.classList.add('is-closing');
+        if(!canAnimate()){finish();return;}
+        // Sample before cancelling so an early close reverses from the visible size.
+        const style=view.getComputedStyle(dialog),from={opacity:style.opacity||'1',transform:style.transform||'none',clipPath:style.clipPath||'inset(0px 0px 0px 0px)'};
+        ++generation;clear();
+        try{
+          const node=source?.returnTarget;
+          const rect=node?.isConnected?node.getBoundingClientRect():null;
+          const visible=rect&&rect.bottom>0&&rect.top<view.innerHeight&&rect.right>0&&rect.left<view.innerWidth;
+          const destination=visible?sourceFrame(rect,dialog.getBoundingClientRect()):null;
+          motion=dialog.animate([from,destination?{...destination,opacity:0}:{opacity:0,transform:'translateY(24px) scale(.88)'}],
+            {duration:destination?600:260,easing:'cubic-bezier(.4,0,.6,1)',fill:'both'});
+          motion.finished.then(finish,finish);
+          timer=view.setTimeout(finish,800);
+        }catch{finish();}
+      }
+      function destroy(){if(dead)return;dead=true;++generation;clear();}
+      return{open,close,destroy};
+    }
+
+    function finishHoverClosing(entry) {
+        if (hoverClosing !== entry) return;
+        hoverClosing = null; entry.motion.cancel(); entry.panel.remove();
+    }
+    function hideHover(smooth = false) {
+        clearTimeout(hoverTimer); clearTimeout(leaveTimer); hoverTicket++;
+        const panel = hover, card = hoverCard, opening = hoverOpening;
+        hover = null; hoverCard = null; hoverOpening = null;
+        if (hoverClosing && (!smooth || panel)) finishHoverClosing(hoverClosing);
+        if (!panel) { opening?.cancel(); return; }
+        let motion = null;
+        if (smooth && card?.isConnected && !document.hidden) {
+            panel.classList.add('is-closing'); panel.inert = true; panel.setAttribute('aria-hidden', 'true');
+            try { motion = shrinkCard(panel, card.querySelector('.cardScalable') || card); } catch { /* Remove immediately if motion is unavailable. */ }
+        }
+        // Sample the visible geometry for shrinking before cancelling growth.
+        opening?.cancel();
+        if (motion) {
+            const entry = { panel, card, motion }; hoverClosing = entry;
+            motion.finished.then(() => finishHoverClosing(entry), () => finishHoverClosing(entry));
+        } else panel.remove();
+    }
+    function leaveHover() { clearTimeout(leaveTimer); leaveTimer = setTimeout(() => hideHover(true), 140); }
     function positionHover(panel, card) {
         const rect = card.querySelector('.cardScalable')?.getBoundingClientRect() || card.getBoundingClientRect();
         const width = Math.min(innerWidth - 24, Math.max(320, Math.min(480, rect.width * 1.5)));
@@ -204,22 +330,8 @@
         panel.style.left = Math.max(12, Math.min(innerWidth - width - 12, rect.x + rect.width / 2 - width / 2)) + 'px';
         panel.style.top = Math.max(headerBottom + 8, Math.min(innerHeight - panel.offsetHeight - 12, rect.top - 35)) + 'px';
     }
-    function animateHover(panel, card, body) {
-        if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-        const source = card.querySelector('.cardScalable')?.getBoundingClientRect() || card.getBoundingClientRect();
-        const target = panel.getBoundingClientRect();
-        if (!source.width || !target.width) return;
-        const scale = source.width / target.width;
-        // Begin at the original artwork's position and size. Reveal the action
-        // area as the floating card grows, without moving the native row.
-        const crop = Math.max(0, target.height - source.height / scale);
-        panel.style.transformOrigin = '0 0';
-        panel.animate([
-            { transform: `translate(${source.left - target.left}px,${source.top - target.top}px) scale(${scale})`, clipPath: `inset(0 0 ${crop}px 0 round 12px)` },
-            { transform: 'translate(0,0) scale(1)', clipPath: 'inset(0 0 0 0 round 9px)' }
-        ], { duration: 280, easing: 'cubic-bezier(.2,.8,.2,1)' });
-        body.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'translateY(0)' }],
-            { duration: 180, delay: 80, fill: 'backwards', easing: 'ease-out' });
+    function animateHover(panel, card) {
+        return growCard(panel, card.querySelector('.cardScalable') || card);
     }
     async function showHover(card) {
         const auth = session(), ticket = ++hoverTicket, ownGeneration = generation;
@@ -229,7 +341,7 @@
         try {
             const item = cache.get(card.dataset.id) || (await metadata([card.dataset.id], auth))[0];
             if (!item || ticket !== hoverTicket || ownGeneration !== generation || session()?.key !== auth.key || !card.isConnected) return;
-            hover?.remove(); hoverCard = card;
+            hideHover(); hoverCard = card;
             const panel = element('article', 'native-cinema-hover'); panel.dataset.nativeCinemaOwned = '';
             panel.setAttribute('aria-label', (item.Name || '') + ' – Vorschau');
             const art = element('button', 'native-cinema-hover-art'); art.type = 'button'; art.setAttribute('aria-label', 'Mehr Infos zu ' + (item.Name || 'diesem Titel'));
@@ -247,7 +359,7 @@
             panel.append(art, body);
             panel.addEventListener('pointerenter', () => clearTimeout(leaveTimer)); panel.addEventListener('pointerleave', leaveHover);
             document.body.append(panel); hover = panel; positionHover(panel, card);
-            animateHover(panel, card, body);
+            hoverOpening = animateHover(panel, card);
         } catch { /* Keep native cards usable if extra metadata is unavailable. */ }
     }
     function pointerOver(event) {
@@ -258,7 +370,7 @@
         if (document.querySelector('dialog[open]')) return;
         clearTimeout(leaveTimer);
         if (card === hoverCard && hover?.isConnected) return;
-        clearTimeout(hoverTimer); hoverTimer = setTimeout(() => showHover(card), 320);
+        clearTimeout(hoverTimer); hoverTimer = setTimeout(() => showHover(card), 550);
     }
     function pointerOut(event) {
         const card = event.target.closest?.('.card[data-id]');
@@ -280,11 +392,20 @@
         }
         return JSON.parse(await new Blob(chunks).text());
     }
+    function dismissDetails(dialog) {
+        if (details !== dialog) return;
+        detailsTicket++; detailsAbort?.abort(); detailsAbort = null;
+    }
+    function finishDetails(dialog, restore) {
+        if (details === dialog) details = null;
+        dialog.cinemaMotion?.destroy(); dialog.close(); dialog.remove();
+        if (restore && dialog.cinemaTrigger?.isConnected) dialog.cinemaTrigger.focus({ preventScroll: true });
+    }
     function closeDetails(restore = true) {
         if (!details) return;
-        const old = details; details = null; detailsTicket++; detailsAbort?.abort(); detailsAbort = null;
-        old.close(); old.remove();
-        if (restore && old.cinemaTrigger?.isConnected) old.cinemaTrigger.focus({ preventScroll: true });
+        const dialog = details; dialog.cinemaRestoreFocus = restore;
+        if (!restore || !dialog.cinemaMotion) { dismissDetails(dialog); finishDetails(dialog, restore); return; }
+        dialog.cinemaMotion.close();
     }
 
     function detailOrigin(id, card, trigger) {
@@ -300,22 +421,8 @@
             // that already loaded artwork while the protected details reload.
             if (url.origin === location.origin && (url.protocol === 'blob:' || url.pathname.startsWith(base + '/Items/'))) imageSrc = url.href;
         }
-        return { rect: rect?.width > 0 && rect?.height > 0 ? rect : null, imageSrc };
-    }
-
-    function animateDetails(dialog, source) {
-        if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-        const target = dialog.getBoundingClientRect();
-        let first = { opacity: 0, transform: 'translateY(24px) scale(.96)' };
-        if (source && target.width > 0) {
-            const scale = Math.min(1, source.width / target.width);
-            const crop = Math.max(0, target.height - source.height / scale);
-            first = { opacity: 1, transform: `translate(${source.left - target.left}px,${source.top - target.top}px) scale(${scale})`,
-                clipPath: `inset(0 0 ${crop}px 0 round 9px)` };
-        }
-        dialog.style.transformOrigin = '0 0';
-        dialog.animate([first, { opacity: 1, transform: 'translate(0,0) scale(1)', clipPath: 'inset(0 0 0 0 round 12px)' }],
-            { duration: 340, easing: 'cubic-bezier(.2,.8,.2,1)' });
+        return { rect: rect?.width > 0 && rect?.height > 0 ? rect : null, imageSrc,
+            returnTarget: (!preview && trigger?.closest?.('.native-cinema-hero')) || card?.querySelector('.cardScalable') || card };
     }
 
     async function episodeSection(dialog, series, auth, ticket) {
@@ -344,7 +451,7 @@
                 }
                 start += data.Items?.length || 0; more.hidden = !data.Items?.length || start >= (data.TotalRecordCount ?? start) || start >= 300;
                 status.textContent = start ? '' : 'Keine Folgen verfügbar.';
-            } catch { if (details === dialog) status.textContent = 'Folgen konnten nicht geladen werden. Die originale Detailseite bleibt verfügbar.'; }
+            } catch { if (details === dialog && ticket === detailsTicket) status.textContent = 'Folgen konnten nicht geladen werden. Die originale Detailseite bleibt verfügbar.'; }
             finally { more.disabled = false; }
         }
         try {
@@ -374,9 +481,10 @@
         dialog.addEventListener('cancel', event => { event.preventDefault(); closeDetails(); });
         dialog.addEventListener('keydown', event => { event.stopPropagation(); if (event.key === 'Escape') { event.preventDefault(); closeDetails(); } });
         dialog.addEventListener('click', event => { if (event.target === dialog) { const rect = dialog.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeDetails(); } });
-        dialog.addEventListener('close', () => { if (details === dialog) closeDetails(); });
-        dialog.showModal();
-        animateDetails(dialog, origin.rect);
+        dialog.addEventListener('close', () => { if (details === dialog) closeDetails(false); });
+        dialog.cinemaMotion = createDialogMotion(dialog, { source: origin, onDismiss: () => dismissDetails(dialog),
+            finishClose: () => finishDetails(dialog, dialog.cinemaRestoreFocus !== false) });
+        dialog.showModal(); dialog.cinemaMotion.open();
         try {
             const item = await readJson('/Users/' + auth.user + '/Items/' + id, auth, detailsAbort.signal);
             if (details !== dialog || ticket !== detailsTicket || session()?.key !== auth.key || item.Id !== id) return;
@@ -403,7 +511,7 @@
             original.addEventListener('click', () => closeDetails(false)); body.append(original);
             dialog.append(art, body);
             if (item.Type === 'Series') episodeSection(dialog, item, auth, ticket);
-        } catch { if (details === dialog) status.textContent = 'Informationen konnten nicht geladen werden. Bitte schließe das Fenster und versuche es erneut.'; }
+        } catch { if (details === dialog && ticket === detailsTicket) status.textContent = 'Informationen konnten nicht geladen werden. Bitte schließe das Fenster und versuche es erneut.'; }
     }
 
     function cardClick(event) {
@@ -417,10 +525,132 @@
         event.preventDefault(); event.stopPropagation(); openDetails(card.dataset.id, card, link);
     }
 
+
+    function createHeroSnap({scroller,header,hero,getSection,enabled=()=>true,onSnap=()=>{},view=scroller.ownerDocument.defaultView}) {
+      const DURATION=240, QUIET_GAP=150;
+      let dead=false,motion=null,frame=null,guard=false,lastCaptured=-Infinity;
+      const now=()=>view.performance.now();
+      function reset(){if(frame!==null)view.cancelAnimationFrame(frame);frame=null;motion=null;guard=false;}
+      function geometry(){
+        const section=getSection();if(!section||hero.hidden)return null;
+        const target=scroller.scrollTop+section.getBoundingClientRect().top-scroller.getBoundingClientRect().top-header.getBoundingClientRect().height;
+        const maximum=Math.max(0,scroller.scrollHeight-scroller.clientHeight);
+        return {section,target:Math.max(0,Math.min(maximum,target))};
+      }
+      function sync(){
+        const layout=geometry();const show=!!getSection()&&(hero.hidden||!!layout&&layout.target>8&&scroller.scrollTop>=layout.target-2);
+        scroller.classList.toggle('native-cinema-catalog-view',show);
+      }
+      function refresh(){
+        const height=header.getBoundingClientRect().height||78;
+        const viewport=scroller.clientHeight||view.innerHeight||900;
+        for(const [name,value] of [['--native-cinema-header-height',height+'px'],['--native-cinema-viewport-height',viewport+'px']])
+          if(scroller.style.getPropertyValue(name)!==value)scroller.style.setProperty(name,value);
+        refreshHeroArtwork(hero);sync();
+      }
+      function snap(target,section){
+        onSnap();guard=true;lastCaptured=now();
+        const reduced=view.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        if(reduced){scroller.scrollTop=target;sync();return;}
+        const entry={from:scroller.scrollTop,to:target,at:now(),section};motion=entry;
+        function tick(time){
+          frame=null;if(dead||motion!==entry)return;
+          if(!enabled()||getSection()!==entry.section){reset();sync();return;}
+          const fraction=Math.max(0,Math.min(1,(time-entry.at)/DURATION));
+          scroller.scrollTop=entry.from+(entry.to-entry.from)*(1-Math.pow(1-fraction,3));sync();
+          if(fraction<1)frame=view.requestAnimationFrame(tick);
+          else{scroller.scrollTop=entry.to;motion=null;lastCaptured=now();sync();}
+        }
+        frame=view.requestAnimationFrame(tick);
+      }
+      function wheel(event){
+        if(dead||event.defaultPrevented||event.ctrlKey||event.metaKey||event.shiftKey||!enabled()) {if(motion)reset();return;}
+        if(Math.abs(event.deltaX)>=Math.abs(event.deltaY)||!event.deltaY)return;
+        const path=event.composedPath?.()||[event.target];
+        if(path.some(node=>node?.matches?.('input,textarea,select,[contenteditable],.alphaPicker,header,.MuiPopover-root,.MuiDialog-root,.mainDrawer,[role="dialog"],[role="menu"],.native-cinema-info,.native-cinema-hover')))return;
+        const layout=geometry();if(!layout||layout.target<8)return;
+        const time=now(),delta=event.deltaY*(event.deltaMode===1?16:event.deltaMode===2?scroller.clientHeight:1);
+        if(motion||(guard&&time-lastCaptured<QUIET_GAP)){event.preventDefault();lastCaptured=time;return;}
+        guard=false;
+        const y=scroller.scrollTop,target=layout.target;
+        if(delta>0){if(y<target-1){event.preventDefault();snap(target,layout.section);}return;}
+        if(y>target+1){
+          if(y+delta>target)return;
+          // Finish this gesture at the first complete grid row. Its remaining
+          // wheel momentum must not also open the hero above it.
+          event.preventDefault();snap(target,layout.section);return;
+        }
+        if(y>1){event.preventDefault();snap(0,layout.section);}
+      }
+      function resize(){
+        const grid=scroller.classList.contains('native-cinema-catalog-view'),before=geometry();
+        const offset=grid&&before?Math.max(0,scroller.scrollTop-before.target):0;
+        reset();refresh();
+        if(grid){const after=geometry();if(after)scroller.scrollTop=after.target+offset;}
+        sync();
+      }
+      function visibility(){if(scroller.ownerDocument.hidden)reset();}
+      scroller.addEventListener('wheel',wheel,{passive:false});scroller.addEventListener('scroll',sync,{passive:true});view.addEventListener('resize',resize);
+      scroller.ownerDocument.addEventListener('visibilitychange',visibility);
+      const observer=view.ResizeObserver?new view.ResizeObserver(resize):null;observer?.observe(header);observer?.observe(scroller.element||scroller);refresh();
+      function preserveCatalog(update){
+        const before=geometry();const keep=enabled()&&before&&(scroller.scrollTop>=before.target-2||motion?.to===before.target);
+        reset();update();refresh();
+        if(keep){const after=geometry();if(after){scroller.scrollTop=after.target;guard=true;lastCaptured=now();}}
+        sync();
+      }
+      return {refresh,reset,preserveCatalog,destroy(){if(dead)return;reset();dead=true;observer?.disconnect();scroller.removeEventListener('wheel',wheel);scroller.removeEventListener('scroll',sync);view.removeEventListener('resize',resize);scroller.ownerDocument.removeEventListener('visibilitychange',visibility);}};
+    }
+
+    function destroyHeroSnap() {
+        if (!heroSnap) return;
+        heroSnap.controller.destroy(); heroSnap.catalog.removeAttribute('data-native-cinema-catalog');
+        heroSnap.page.classList.remove('native-cinema-hero-page', 'native-cinema-catalog-view');
+        for (const key of ['--native-cinema-header-height','--native-cinema-viewport-height']) heroSnap.page.style.removeProperty(key);
+        heroSnap = null;
+    }
+    function refreshHeroArtwork(node) {
+        if (!node.cinemaArtwork || node.cinemaGeneration !== generation || !session()) return;
+        const width = Math.min(3840, Math.max(640, Math.ceil(node.clientWidth * Math.min(3, devicePixelRatio || 1) / 320) * 320));
+        if (node.cinemaImageWidth === width) return;
+        node.cinemaImageWidth = width;
+        const artwork = node.cinemaArtwork;
+        node.querySelector('.native-cinema-hero-image').src = imageUrl(artwork, artwork.BackdropImageTags?.length ? 'Backdrop' : landscape(artwork), width);
+    }
+    function mountHeroSnap(page, node) {
+        const header = [...document.querySelectorAll('header.MuiAppBar-root,.skinHeader')].find(node =>
+            node.getBoundingClientRect().height > 0 && getComputedStyle(node).visibility !== 'hidden');
+        const grid = page.querySelector('.itemsContainer');
+        const catalog = page.querySelector('#homeTab.is-active .homeSectionsContainer') || grid?.closest('.padded-bottom-page') || grid;
+        if (!header || !catalog || node.contains(catalog)) { refreshHeroArtwork(node); return; }
+        if (heroSnap?.page === page && heroSnap.catalog === catalog && heroSnap.header === header) { heroSnap.controller.refresh(); return; }
+        destroyHeroSnap();
+        let element = page;
+        while (element !== document.body && element !== document.documentElement) {
+            if (/auto|scroll/.test(getComputedStyle(element).overflowY) && element.scrollHeight > element.clientHeight + 1) break;
+            element = element.parentElement || document.documentElement;
+        }
+        const documentScroll = element === document.body || element === document.documentElement;
+        if (documentScroll) element = document.scrollingElement;
+        const events = documentScroll ? document : element;
+        const scroller = { element, ownerDocument: document, classList: page.classList, style: page.style,
+            get clientHeight() { return documentScroll ? document.documentElement.clientHeight || innerHeight : element.clientHeight; },
+            get scrollHeight() { return element.scrollHeight; },
+            get scrollTop() { return element.scrollTop; },
+            set scrollTop(top) { element.scrollTo({ top, behavior: 'instant' }); },
+            getBoundingClientRect() { return documentScroll ? { top: 0 } : element.getBoundingClientRect(); },
+            addEventListener(...args) { events.addEventListener(...args); }, removeEventListener(...args) { events.removeEventListener(...args); }
+        };
+        page.classList.add('native-cinema-hero-page'); catalog.setAttribute('data-native-cinema-catalog', '');
+        const controller = createHeroSnap({ scroller, header, hero: node, getSection: () => catalog.isConnected ? catalog : null,
+            enabled: () => node.isConnected && activePage() === page && !details && !document.hidden && !!session(), onSnap: () => hideHover() });
+        heroSnap = { page, catalog, header, controller };
+    }
+
     function showHero(page, card, item, ownGeneration, artwork = item) {
         const key = page.id + ':' + item.Id + ':' + artwork.Id;
-        if (heroKey === key && hero?.isConnected) return;
-        hero?.remove(); heroKey = key;
+        if (heroKey === key && hero?.isConnected) { mountHeroSnap(page, hero); return; }
+        destroyHeroSnap(); hero?.remove(); heroKey = key;
         const section = element('section', 'native-cinema-hero');
         section.dataset.nativeCinemaOwned = ''; section.setAttribute('aria-label', artwork.Name || 'Vorschau');
         const image = element('img', 'native-cinema-hero-image'); image.alt = ''; image.setAttribute('aria-hidden', 'true');
@@ -463,9 +693,10 @@
         section.append(image, shade, copy);
         const home = page.querySelector('#homeTab.is-active');
         (home || page).prepend(section); hero = section;
-        image.src = imageUrl(artwork, artwork.BackdropImageTags?.length ? 'Backdrop' : landscape(artwork), 1920);
+        section.cinemaArtwork = artwork; section.cinemaGeneration = ownGeneration;
+        mountHeroSnap(page, section);
         image.onerror = () => {
-            if (section.isConnected) { section.remove(); if (hero === section) { hero = null; heroKey = ''; } }
+            if (section.isConnected) { if (hero === section) destroyHeroSnap(); section.remove(); if (hero === section) { hero = null; heroKey = ''; } }
         };
     }
 
@@ -494,7 +725,7 @@
                     const series = item.Type === 'Episode' && validId(item.SeriesId) ? (await metadata([item.SeriesId], auth))[0] : null;
                     if (generation === ownGeneration && session()?.key === auth.key && activePage() === page) showHero(page, first, item, ownGeneration, series || item);
                 }
-            } else { hero?.remove(); hero = null; heroKey = ''; }
+            } else { destroyHeroSnap(); hero?.remove(); hero = null; heroKey = ''; }
             page.dataset.nativeCinemaInitialized = 'true';
             window.__nativeCinemaReady?.(); root.classList.remove('native-cinema-boot');
         } catch { retryAfter = Date.now() + 5000; window.__nativeCinemaReady?.(); root.classList.remove('native-cinema-boot'); }
@@ -522,7 +753,7 @@
     function start() {
         observer.observe(document.body, { childList: true, subtree: true });
         document.addEventListener('scroll', scroll, { capture: true, passive: true });
-        window.addEventListener('hashchange', () => { hideHover(); closeDetails(false); scroll(); schedule(); });
+        window.addEventListener('hashchange', () => { heroSnap?.controller.reset(); hideHover(); closeDetails(false); scroll(); schedule(); });
         document.addEventListener('pointerover', pointerOver);
         document.addEventListener('pointermove', event => { lastPointer = { x: event.clientX, y: event.clientY, type: event.pointerType }; }, { passive: true });
         document.addEventListener('pointerout', pointerOut);

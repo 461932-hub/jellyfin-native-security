@@ -28,6 +28,7 @@ html:not(.native-cinema-disabled) body { font-family: Arial, Helvetica, sans-ser
 html.native-cinema-enabled,
 html.native-cinema-enabled body,
 html.native-cinema-enabled .mainAnimatedPage { overflow-anchor: none; }
+html.native-cinema-enabled { scroll-behavior: auto; }
 /* The actual entry document loads this before the original client scripts.
    A Cinema skeleton occupies the page until the prepared view is revealed. */
 html.native-cinema-boot .mainAnimatedPage { visibility: hidden !important; }
@@ -109,6 +110,14 @@ html:not(.native-cinema-disabled) .native-cinema-hero [hidden] { display: none !
 html:not(.native-cinema-disabled) .native-cinema-hero-meta { color: #f4f4f4; font-size: clamp(13px,1.25vw,18px); font-weight: 600; margin-bottom: 16px; }
 html:not(.native-cinema-disabled) .native-cinema-hero-overview { color: white; font-size: clamp(14px,1.5vw,22px); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin: 0 0 25px; text-shadow: 0 2px 5px #0008; }
 html:not(.native-cinema-disabled) .native-cinema-hero-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+/* Cinema uses the actual viewport minus the measured native header. */
+html:not(.native-cinema-disabled) .native-cinema-hero-page .native-cinema-hero {
+    height: calc(var(--native-cinema-viewport-height,100svh) - var(--native-cinema-header-height,70px) - 20px);
+    min-height: 0; max-height: none; margin-top: 10px; margin-bottom: 10px;
+}
+html:not(.native-cinema-disabled) [data-native-cinema-catalog] {
+    min-height: calc(var(--native-cinema-viewport-height,100svh) - var(--native-cinema-header-height,70px)); overflow-anchor: none;
+}
 html:not(.native-cinema-disabled) :is(.native-cinema-primary,.native-cinema-secondary) { padding: 12px 22px; border: 0; border-radius: 30px; font: 700 15px Arial,Helvetica,sans-serif; text-decoration: none; min-height: 43px; box-sizing: border-box; cursor: pointer; }
 html:not(.native-cinema-disabled) .native-cinema-primary { background: white; color: #151515; }
 html:not(.native-cinema-disabled) .native-cinema-secondary { background: #ffffff30; color: white; }
@@ -156,6 +165,7 @@ html:not(.native-cinema-disabled) .userPreferencesPage .readOnlyContent { backgr
 
 /* Floating expansion lives outside native rails/grids, so it is never clipped. */
 html:not(.native-cinema-disabled) .native-cinema-hover { position: fixed; z-index: 1090; margin: 0; padding: 0; border-radius: 9px; overflow: hidden; background: #181818; color: #eee; box-shadow: 0 18px 55px #000b,0 2px 12px #0008; font: 15px Arial,Helvetica,sans-serif; }
+html:not(.native-cinema-disabled) .native-cinema-hover.is-closing { pointer-events: none; }
 html:not(.native-cinema-disabled) .native-cinema-hover-art { position: relative; display: block; aspect-ratio: 16/9; width: 100%; padding: 0; border: 0; background: #262626; cursor: pointer; }
 html:not(.native-cinema-disabled) .native-cinema-hover-image { display: block; width: 100%; height: 100%; object-fit: cover; }
 html:not(.native-cinema-disabled) .native-cinema-hover-body { padding: 20px 16px 24px; }
@@ -171,8 +181,11 @@ html:not(.native-cinema-disabled) .native-cinema-hover-genres { font-size: 15px;
 
 /* Cinema information sheet; original advanced details remain one link away. */
 html:not(.native-cinema-disabled) .native-cinema-info { box-sizing: border-box; position: fixed; inset: 32px 0 auto; width: min(900px,calc(100vw - 48px)); max-width: none; max-height: calc(100svh - 64px); margin: 0 auto; padding: 0; border: 0; border-radius: 12px; overflow-y: auto; overscroll-behavior: contain; background: #181818; color: #eee; box-shadow: 0 30px 100px #000c; font: 15px Arial,Helvetica,sans-serif; }
-.native-cinema-info::backdrop { background: #000b; backdrop-filter: blur(5px); animation: native-cinema-backdrop-in 240ms ease-out; }
+.native-cinema-info::backdrop { background: #000b; backdrop-filter: blur(5px); animation: native-cinema-backdrop-in 360ms ease-out both; }
 @keyframes native-cinema-backdrop-in { from { opacity: 0; backdrop-filter: blur(0); } to { opacity: 1; backdrop-filter: blur(5px); } }
+.native-cinema-info.is-closing::backdrop { animation: native-cinema-backdrop-out 260ms ease-in both; }
+@keyframes native-cinema-backdrop-out { from { background-color: #000b; backdrop-filter: blur(5px); } to { background-color: #0000; backdrop-filter: blur(0); } }
+html:not(.native-cinema-disabled) .native-cinema-info.is-closing { pointer-events: none; }
 html:not(.native-cinema-disabled) .native-cinema-info:has(.native-cinema-info-loading-art) { min-height: min(640px,calc(100svh - 64px)); }
 html:not(.native-cinema-disabled) .native-cinema-info-close { position: absolute; right: 16px; top: 16px; z-index: 4; background: #181818cc; border: 0; }
 html:not(.native-cinema-disabled) .native-cinema-info-art { position: relative; aspect-ratio: 16/9; background: #252525; }
@@ -222,7 +235,14 @@ html:not(.native-cinema-disabled) .native-cinema-load-more { width: 100%; paddin
     html:not(.native-cinema-disabled) :is(#tvshowsPage,#moviesPage) :is(.card[data-native-cinema-wide],.card.backdropCard[data-type="Movie"],.card.backdropCard[data-type="Series"]) { width: 50%; }
     html:not(.native-cinema-disabled) .sectionTitle { font-size: 20px; }
 }
+@media(max-height:500px) {
+    html:not(.native-cinema-disabled) .native-cinema-hero-page .native-cinema-hero-overview { display: none; }
+    html:not(.native-cinema-disabled) .native-cinema-hero-page .native-cinema-hero-logo { height: min(18svh,72px); margin-bottom: 8px; }
+    html:not(.native-cinema-disabled) .native-cinema-hero-page .native-cinema-hero-title { font-size: clamp(22px,4.5vh,36px); margin-bottom: 8px; }
+    html:not(.native-cinema-disabled) .native-cinema-hero-page .native-cinema-hero-meta { font-size: 12px; margin-bottom: 8px; }
+    html:not(.native-cinema-disabled) .native-cinema-hero-page .native-cinema-hero-copy { bottom: 18px; }
+}
 @media(prefers-reduced-motion:reduce) {
     html:not(.native-cinema-disabled) .native-cinema-art { transition: none; }
-    .native-cinema-info::backdrop { animation: none; }
+    .native-cinema-info::backdrop,.native-cinema-info.is-closing::backdrop { animation: none; }
 }

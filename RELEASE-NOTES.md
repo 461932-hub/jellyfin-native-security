@@ -1,42 +1,35 @@
-Preview 8: Der Vorschaupfeil oeffnet das Infofenster mit Cinema-Animation.
-Das Fenster waechst aus dem aktuellen Vorschaubild; der Ladezustand behaelt
-den grossen Rahmen. Der Hintergrund wird weich eingeblendet. Escape und
-Schliessen bleiben sofort moeglich; reduzierte Bewegung wird respektiert.
+Preview 9: Cinema-Bewegungen in beide Richtungen und einrastende Vollbildvorschau.
 
-Preview 7: Cinema startet direkt als Standardoberflaeche.
+Kleine Vorschauen wachsen aus der Kachel und schrumpfen dorthin zurueck. Der
+Pfeil oeffnet das grosse Infofenster; X, Escape und Hintergrundklick schliessen
+es mit dem Rueckweg zur sichtbaren Ausgangskachel. Unterbrochenes Oeffnen wird
+von der sichtbaren Groesse aus umgekehrt. Der Hintergrund blendet passend aus.
+Die Bewegungsablaeufe und ihre Zeitkurven stammen aus dem vorhandenen Cinema-
+Paket. Reduzierte Bewegung wird respektiert; Navigation, Wiedergabestart und
+Abmeldung raeumen eigene Vorschauen ohne verzoegerten Rueckweg auf.
 
-- Das Einstiegdokument laedt Cinema-Startlogik und Gestaltung vor dem Client.
-  Der vorbereitete Aufbau ersetzt das vorherige Aufblitzen der alten Ansicht.
-- Standbild-Hero auf Start-, Film- und Serienseiten; keine Vorschauvideos.
-- Vergroesserte schwebende Karten bei Mausberuehrung, ausserhalb der Rails.
-- Klick auf Titel oder Mehr Infos oeffnet das Cinema-Infofenster mit
-  Beschreibung, Besetzung, originalen Aktionen und optionaler Detailseite.
-- Serienfenster mit Staffelwahl, seitenweise geladenen Folgen und Weitergabe
-  des Episodenstarts an Jellyfins originalen Wiedergabebefehl.
-- Die Startseite behaelt horizontale Schiebereihen. Bibliotheken bleiben feste
-  Raster. Miniatur ist der einmal gesetzte native Standard je Bibliothek und
-  Browser; Sortierung und spaetere bewusste Ansichtswahlen werden erhalten.
-- Native Navigation, Suche, Filter, SyncPlay, Cast, Player und Rechtepruefungen
-  bleiben angebunden. Sitzungstokens stehen weiter nicht in Metadaten-/Bild-URLs.
-- Originalmodus bei Bedarf explizit mit web/index.html?cinema=off aufrufbar.
+Auf Start-, Film- und Serienseiten belegt das grosse Bild die verfuegbare
+Fensterhoehe unter der sichtbaren nativen Kopfleiste. Versteckte alte Header
+zaehlen dabei nicht mit. Bildanfragen folgen der Breite und Pixeldichte bis
+3840 Pixel. In niedrigen Querformatfenstern bleiben Titel und Abspielen sichtbar.
 
-Die nativen Medien- und Bibliothekspruefungen sowie der TV-Direct-Play-Fix aus
-Preview 3 bleiben unveraendert. Native TV-Apps laden nicht diese Weboberflaeche.
+Das Mausrad rastet vom Hero zum ersten Katalogbereich ein und nach oben zurueck.
+Im Katalog bleibt vertikales Scrollen frei. Ein eigener oberer Anschlag stoppt
+Radnachlauf, bevor das grosse Bild erneut geoeffnet wird. Horizontale Gesten,
+Formulare, native Menues und Dialoge behalten ihre Bedienung. Ein Wechsel der
+Fenstergroesse erhaelt die aktuelle Katalogposition.
 
-Die vorhandene CasaOS-Test-App auf folgendes Image aktualisieren:
-ghcr.io/461932-hub/jellyfin-native-security:12.4-preview8
-Vorhandene Port-, Medien-, Config- und Cache-Pfade beibehalten. Danach den
-Browser mit Strg+F5 neu laden. Der Wechsel ist erst nach dem NAS-Update aktiv.
+Die vorhandenen nativen Aktionen, Player, Berechtigungspruefungen und der
+TV-Direct-Play-Fix bleiben bestehen. Vorschauen enthalten nur Standbilder.
+Startseite: native horizontale Reihen. Bibliothek: festes Miniaturraster.
+Meine Medien bleibt auf der Cinema-Startseite ausgeblendet.
 
-Dieser Stand ist ein eigener Testkandidat, keine offizielle Jellyfin-Ausgabe.
-CI prueft Browserverhalten an isolierten Beispieldaten sowie API-, Docker-
-und TV-Geraetezuordnungsfaelle. Kein neuer physischer TV-Test wird behauptet.
+Vorhandene CasaOS-Test-App aktualisieren:
+ghcr.io/461932-hub/jellyfin-native-security:12.4-preview9
+Vorhandene Ports und Ordner erhalten. Anschliessend Strg+F5.
 
-Preview 7 reserviert auch die Rasterspalten vor dem Nachladen. Die nativen
-Bibliotheksbilder bleiben unveraendert; eigene spaetere Ansichtswahlen werden
-weiter beachtet. Die Browserpruefung deckt die stabile Spaltenaufteilung ab.
-
-Preview 7 laesst Hover-Vorschauen aus der urspruenglichen Bildkachel wachsen,
-blendet Aktionen weich ein und respektiert reduzierte Bewegung. Die Reihe
-behaelt ihre Position. Meine Medien entfaellt auf der Cinema-Startseite;
-die Bibliotheken bleiben ueber die native Kopfnavigation erreichbar.
+Pruefumfang: isolierte Browserfaelle fuer / und /media, API-Regressionen,
+Docker-Start und synthetische TV-Geraetezuordnung. Echte Start- und Serienseite
+wurden zusaetzlich im Diagnosebrowser mit neuen Webdateien geprueft; keine
+Medienwiedergabe oder Produktionsaenderung. Kein neuer physischer TV-Test.
+Eigener Testkandidat, keine offizielle Jellyfin-Veroeffentlichung.

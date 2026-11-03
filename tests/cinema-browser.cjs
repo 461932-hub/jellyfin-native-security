@@ -44,10 +44,10 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
         if (url.pathname.endsWith('/web/index.html')) {
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
             res.end(`<!doctype html><html><head><script src="cinema-boot.js"></script><link rel="stylesheet" href="cinema-native.css">
-              <style>body{margin:0}header{background:#444}.MuiToolbar-root{display:flex;align-items:center}.mainAnimatedPage{position:absolute;top:64px;left:0;right:0}.card{position:relative;width:200px;height:120px}.cardImageContainer{position:absolute;inset:0}.cardPadder{height:0;padding-bottom:56.25%}</style>
+              <style>body{margin:0}header{background:#444;position:fixed;inset:0 0 auto;z-index:1100}.MuiToolbar-root{display:flex;align-items:center}.mainAnimatedPage{position:absolute;top:64px;left:0;right:0}.card{position:relative;width:200px;height:120px}.cardImageContainer{position:absolute;inset:0}.cardPadder{height:0;padding-bottom:56.25%}</style>
               <script>window.fixture={token:'fixture-token',user:'${user}',outside:false,plays:0};window.ApiClient={accessToken:()=>fixture.token,getCurrentUserId:()=>fixture.user,serverId:()=> 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',serverAddress:()=>fixture.outside?'https://outside.invalid':'${'http://127.0.0.1:' + server.address().port + base}'};</script>
               <script defer src="cinema-native.js"></script></head><body>
-              <header class="MuiAppBar-root"><div class="MuiToolbar-root"><a class="MuiButton-root MuiButton-sizeLarge" href="#/">Native Home</a><button id="original-menu">Native menu</button></div></header>
+              <div class="skinHeader" hidden></div><header class="MuiAppBar-root"><div class="MuiToolbar-root"><a class="MuiButton-root MuiButton-sizeLarge" href="#/">Native Home</a><button id="original-menu">Native menu</button></div></header>
               <div id="indexPage" class="mainAnimatedPage"><div id="homeTab" class="is-active"><div class="itemsContainer">
               <div class="card" data-id="${id}" data-type="Movie"><div class="cardPadder"></div><div class="cardImageContainer"></div><a id="original-details" href="#/details?id=${id}">Details</a><button id="original-play" data-action="play" onclick="fixture.plays++">Native play</button></div>
               </div></div></div><script>if(location.hash.startsWith('#/tv')||location.hash.startsWith('#/movies')){document.querySelector('.mainAnimatedPage').id=location.hash.startsWith('#/tv')?'tvshowsPage':'moviesPage';document.querySelector('.card').classList.add('backdropCard');window.initialNativeGridRatio=document.querySelector('.card').getBoundingClientRect().width/document.querySelector('.mainAnimatedPage').getBoundingClientRect().width;}</script></body></html>`); return;
@@ -97,12 +97,22 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
         assert.equal(await page.locator('.native-cinema-hover').evaluate(node=>node.parentElement===document.body),true);
         assert.equal((await page.locator('.card').boundingBox()).width,sourceRect.width);
         note('Floating hover expands without resizing or clipping the native row at ' + (base || '/'));
+        await page.mouse.move(5, 5);
+        await page.locator('.native-cinema-hover.is-closing').waitFor({state:'visible'});
+        assert.equal(await page.locator('.native-cinema-hover.is-closing').evaluate(node=>node.inert),true);
+        await page.locator('.native-cinema-hover').waitFor({state:'detached'});
+        await page.locator('.card').hover(); await page.locator('.native-cinema-hover:not(.is-closing)').waitFor({state:'visible'});
+        assert.equal(await page.locator('.native-cinema-hover:not(.is-closing)').count(),1);
+        note('Small preview shrinks before removal and reopens with a single active card at ' + (base || '/'));
         await page.locator('.native-cinema-hover').getByRole('button',{name:'Mehr Infos',exact:true}).click();
         await page.getByRole('dialog',{name:'Native fixture title',exact:true}).waitFor();
         assert.equal(await page.locator('.native-cinema-info-overview').textContent(),'Full movie information');
         assert.equal(await page.locator('.native-cinema-info video,.native-cinema-info audio').count(),0);
         assert.equal(await page.locator('.native-cinema-original-details').getAttribute('href'),'#/details?id='+id);
-        await page.keyboard.press('Escape');await page.locator('.native-cinema-info').waitFor({state:'detached'});
+        await page.keyboard.press('Escape');
+        assert.equal(await page.locator('.native-cinema-info').evaluate(node=>node.open&&node.inert&&node.classList.contains('is-closing')),true);
+        await page.locator('.native-cinema-info').waitFor({state:'detached'});
+        note('Large preview remains visible and inert until its return animation completes at ' + (base || '/'));
         note('Cinema information window loads authorized details and closes with Escape at ' + (base || '/'));
         await page.locator('#original-details').dispatchEvent('click');
         await page.getByRole('dialog',{name:'Native fixture title',exact:true}).waitFor();
@@ -123,11 +133,14 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
         assert(rect.x >= 0 && rect.x + rect.width <= 390);
         const action = await page.locator('.native-cinema-primary').boundingBox(); assert(action.x >= 0 && action.x + action.width <= 390);
         note('Hero and native-play action fit a 390 px viewport at ' + (base || '/'));
+        await page.locator('#original-details').dispatchEvent('click');await page.locator('.native-cinema-info').waitFor({state:'visible'});
+        await page.keyboard.press('Escape');
         await page.evaluate(() => { fixture.token = ''; document.querySelector('.native-cinema-hero').dispatchEvent(new Event('scroll', { bubbles: true })); });
         await page.locator('.native-cinema-hero').waitFor({ state: 'detached' });
         assert.equal(await page.locator('.native-cinema-art').count(), 0);
         await page.locator('#original-play').click({ force: true }); assert.equal(await page.evaluate(() => fixture.plays), 3);
-        note('Logout removes added artwork while preserving original controls at ' + (base || '/'));
+        assert.equal(await page.locator('.native-cinema-info,.native-cinema-hover').count(),0);
+        note('Logout immediately clears closing previews and artwork while preserving original controls at ' + (base || '/'));
         fixtureMode = 'denied';
         await page.evaluate(() => { fixture.token = 'different-fixture-token'; fixture.user = 'cccccccccccccccccccccccccccccccc'; });
         await page.waitForTimeout(1600); assert.equal(await page.locator('.native-cinema-hero').count(), 0);
@@ -156,6 +169,66 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
         assert(Math.abs(await page.evaluate(()=>document.querySelector('.card').getBoundingClientRect().width/document.querySelector('.mainAnimatedPage').getBoundingClientRect().width-initialNativeGridRatio))<.001);
         assert.equal(await page.locator('.card .native-cinema-art').count(),0);
         note('Fixed library thumbnail dimensions and native artwork remain unchanged after metadata arrives at ' + (base || '/'));
+        await page.locator('#original-details').dispatchEvent('click');
+        await page.locator('.native-cinema-info').waitFor({state:'visible'});
+        const interrupted=await page.locator('.native-cinema-info').evaluate(dialog=>{
+            const motion=dialog.getAnimations().find(animation=>animation.effect.target===dialog&&!animation.effect.pseudoElement);
+            if(!motion)throw new Error('Opening motion missing');
+            motion.pause();motion.currentTime=200;
+            const before=dialog.getBoundingClientRect();
+            dialog.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));
+            const closing=dialog.getAnimations().find(animation=>animation.effect.target===dialog&&!animation.effect.pseudoElement);
+            if(!closing)throw new Error('Return motion missing');
+            closing.pause();closing.currentTime=0;
+            const after=dialog.getBoundingClientRect();
+            const delta=Math.max(Math.abs(before.width-after.width),Math.abs(before.x-after.x),Math.abs(before.y-after.y));
+            closing.finish();return delta;
+        });
+        assert(interrupted<1,'Interrupted opening must close from the visible frame');
+        await page.locator('.native-cinema-info').waitFor({state:'detached'});
+        note('Closing during opening starts at the visible frame without jumping at ' + (base || '/'));
+        await page.emulateMedia({reducedMotion:'reduce'});
+        await page.locator('#original-details').dispatchEvent('click');await page.locator('.native-cinema-info').waitFor({state:'visible'});
+        assert.equal(await page.locator('.native-cinema-info').evaluate(node=>node.getAnimations({subtree:true}).length),0);
+        await page.keyboard.press('Escape');await page.locator('.native-cinema-info').waitFor({state:'detached'});
+        await page.emulateMedia({reducedMotion:'no-preference'});
+        note('Reduced motion skips both dialog directions including the backdrop at ' + (base || '/'));
+
+        await page.goto(origin + base + '/web/index.html?hero-snap=1#/home');
+        await page.locator('.native-cinema-hero').waitFor({state:'visible'});
+        await page.waitForFunction(()=>document.querySelector('[data-native-cinema-catalog]'));
+        await page.locator('[data-native-cinema-catalog]').evaluate(node=>node.style.minHeight='2600px');
+        const snapTarget=()=>page.evaluate(()=>{
+            const section=document.querySelector('[data-native-cinema-catalog]'),header=document.querySelector('header');
+            return scrollY+section.getBoundingClientRect().top-header.getBoundingClientRect().height;
+        });
+        const at=async value=>page.waitForFunction(y=>Math.abs(scrollY-y)<2,value);
+        const target=await snapTarget();
+        await page.mouse.move(700,300);await page.mouse.wheel(0,120);await at(target);
+        assert(Math.abs(await page.locator('[data-native-cinema-catalog]').evaluate(n=>n.getBoundingClientRect().top)-await page.locator('header').evaluate(n=>n.getBoundingClientRect().bottom))<2);
+        note('Wheel snaps from the hero to the catalogue below the native header at ' + (base || '/'));
+        await page.waitForTimeout(220);await page.mouse.wheel(0,250);await at(target+250);
+        await page.mouse.wheel(0,-400);await at(target);
+        await page.mouse.wheel(0,-120);await page.waitForTimeout(60);await at(target);
+        await page.waitForTimeout(220);await page.mouse.wheel(0,-120);await at(0);
+        note('Catalogue scroll stays free, upward momentum stops at its boundary, and a new gesture returns to the hero at ' + (base || '/'));
+        await page.mouse.wheel(180,0);await page.waitForTimeout(80);assert(Math.abs(await page.evaluate(()=>scrollY))<2);
+        note('Horizontal wheel gestures remain available to original rails at ' + (base || '/'));
+        for(const [width,height] of [[1920,1080],[1280,720],[390,844],[1024,360],[3840,2160]]){
+            await page.setViewportSize({width,height});
+            await page.waitForFunction(()=>Math.abs(document.querySelector('.native-cinema-hero').getBoundingClientRect().height-(innerHeight-document.querySelector('header').getBoundingClientRect().height-20))<2);
+            const bounds=await page.locator('.native-cinema-hero').boundingBox(),playBounds=await page.locator('.native-cinema-primary').first().boundingBox();
+            assert(bounds.x>=0&&bounds.x+bounds.width<=width);
+            assert(playBounds.y>=bounds.y&&playBounds.y+playBounds.height<=bounds.y+bounds.height+1);
+        }
+        assert.equal(await page.locator('.native-cinema-hero-image').evaluate(node=>new URL(node.src).searchParams.get('maxWidth')),'3840');
+        note('Hero fits desktop, mobile, short landscape and 4K viewports while artwork follows resolution at ' + (base || '/'));
+        await page.setViewportSize({width:1280,height:720});await page.waitForTimeout(100);
+        const beforeResizeTarget=await snapTarget();
+        await page.evaluate(y=>scrollTo(0,y+200),beforeResizeTarget);await page.waitForTimeout(100);
+        await page.setViewportSize({width:1920,height:1080});await page.waitForTimeout(150);
+        const resizedTarget=await snapTarget();assert(Math.abs(await page.evaluate(()=>scrollY)-resizedTarget-200)<2);
+        note('Resizing while browsing preserves the catalogue offset at ' + (base || '/'));
         await page.goto(origin + base + '/web/index.html?cinema=off');
         assert.equal(await page.locator('.native-cinema-hero').count(), 0);
         assert.equal(await page.locator('html').getAttribute('class'), 'native-cinema-disabled');

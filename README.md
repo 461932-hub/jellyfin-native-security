@@ -14,7 +14,7 @@ liegen unter `server/`; `SOURCE-PATCH.diff` zeigt die Aenderungen gegen
 ## Installation ueber CasaOS
 
 Nach einem erfolgreichen Lauf unter **Actions** steht das Image unter
-`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview8` bereit.
+`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview9` bereit.
 Der Kontoinhaber muss das GitHub-Containerpaket einmal unter **Packages ->
 jellyfin-native-security -> Package settings -> Change visibility -> Public**
 oeffentlich lesbar machen. Ein oeffentliches Repository allein aendert die
@@ -90,6 +90,21 @@ Klick oeffnet das Cinema-Infofenster mit Beschreibung, Besetzung, nativen
 Abspiel-/Favoritenaktionen und bei Serien einer Staffel-/Folgenauswahl.
 Eine Verknuepfung zur originalen Detailseite bleibt im Fenster vorhanden.
 
+Oeffnen und Schliessen verwenden jetzt die Bewegungsablaeufe aus dem Cinema-
+Projekt. Kleine Vorschauen schrumpfen zur Kachel zurueck, grosse Infofenster
+zur sichtbaren Ausgangskachel. Auch ein Schliessen waehrend des Oeffnens geht
+von der gerade sichtbaren Groesse aus. Escape, X und Hintergrundklick bleiben
+verfuegbar. Abmeldung, Seitenwechsel und Wiedergabestart entfernen die eigenen
+Vorschauen sofort; reduzierte Bewegung deaktiviert die Uebergaenge.
+
+Das grosse Vorschaubild nutzt die verfuegbare Fensterhoehe abzueglich der
+sichtbaren Jellyfin-Kopfleiste. Bildanfragen folgen der Aufloesung bis maximal
+3840 Pixel Breite. Kurze Querformatfenster erhalten kompakte Titel und Aktionen.
+Das Mausrad rastet vom grossen Bild zum Katalog ein und wieder zurueck. Im
+Katalog bleibt normales Scrollen erhalten; Radnachlauf oeffnet das grosse Bild
+nicht ungewollt. Horizontale Gesten bleiben den nativen Reihen vorbehalten.
+Ein Groessenwechsel erhaelt den aktuellen Abstand im Katalog.
+
 Die Startseite behaelt ihre nativen horizontalen Reihen und Schieberegler;
 Filme und Serien behalten das feste Bibliotheksraster. Der vorhandene native
 Ansichtswert fuer Filme und Serien wird einmal pro Bibliothek und Browser auf
@@ -120,7 +135,7 @@ vorhandene TV-Direct-Play-Pfad wird nicht umgestellt.
 ## Build und Nachweise
 
 ```sh
-docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview8 .
+docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview9 .
 ```
 
 Der Build prueft die Quellpruefsummen, kompiliert die Linux-x64-Laufzeit und
