@@ -740,9 +740,13 @@
             const eligible = ['indexPage', 'moviesPage', 'tvshowsPage'].includes(page.id)
                 && (!page.querySelector('#favoritesTab.is-active'));
             const first = eligible ? cards.find(card => card.dataset.type !== 'Season') : null;
-            const requested = [...new Set([first?.dataset.id, ...cards.filter(visible).map(card => card.dataset.id)].filter(Boolean))].slice(0, 24);
+            // Bound the viewport work set below the cache size. metadata() requests
+            // only uncached IDs, at most 24 at a time; cached cards must not crowd
+            // later rows out of that request budget.
+            const requested = [...new Set([first?.dataset.id, ...cards.filter(visible).map(card => card.dataset.id)].filter(Boolean))].slice(0, 128);
             const items = await metadata(requested, auth);
             if (generation !== ownGeneration || session()?.key !== auth.key || activePage() !== page) return;
+            if (requested.some(id => !cache.has(id))) followup = true;
             for (const item of items) for (const card of cards) if (card.dataset.id === item.Id) enhanceCard(card, item, ownGeneration);
             if (first) {
                 const item = items.find(item => item.Id === first.dataset.id);

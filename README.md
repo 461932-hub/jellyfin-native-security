@@ -14,7 +14,7 @@ liegen unter `server/`; `SOURCE-PATCH.diff` zeigt die Aenderungen gegen
 ## Installation ueber CasaOS
 
 Nach einem erfolgreichen Lauf unter **Actions** steht das Image unter
-`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview13` bereit.
+`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview14` bereit.
 Der Kontoinhaber muss das GitHub-Containerpaket einmal unter **Packages ->
 jellyfin-native-security -> Package settings -> Change visibility -> Public**
 oeffentlich lesbar machen. Ein oeffentliches Repository allein aendert die
@@ -119,7 +119,12 @@ auf Start zeigen Filme, Serien, Folgen und Staffeln einheitlich in 16:9. Der
 Platz wird schon vor dem Laden der Metadaten reserviert. Staffeln bevorzugen
 eigene Miniaturen oder vorhandene horizontale Bilder der uebergeordneten Serie;
 Musikalben und andere Kartentypen behalten ihr natives Format. Originale
-Staffel-Verknuepfungen bleiben erhalten. Der vorhandene native
+Staffel-Verknuepfungen bleiben erhalten.
+Die Bilddaten fuer sichtbare Reihen werden in begrenzten Schritten vervollstaendigt.
+Bereits zwischengespeicherte Titel belegen nicht mehr die Anfrageplaetze fuer
+spaetere Filme. Pro Metadatenanfrage bleiben hoechstens 24 fehlende Titel erlaubt;
+der aktuelle Arbeitsvorrat ist auf 128 Titel begrenzt. Vorhandene Miniaturbilder
+werden so auch in spaeteren Filmreihen und beim seitlichen Weiterschieben geladen. Der vorhandene native
 Bildtyp wird in den nativen Bibliotheksansichten standardmaessig auf Miniatur
 statt Primaer gesetzt, einschliesslich Sammlungen, Favoriten und weiterer Tabs.
 Bestehende Primaer-Einstellungen werden einmal pro Ansicht und Browser uebernommen,
@@ -154,7 +159,7 @@ vorhandene TV-Direct-Play-Pfad wird nicht umgestellt.
 ## Build und Nachweise
 
 ```sh
-docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview13 .
+docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview14 .
 ```
 
 Der Build prueft die Quellpruefsummen, kompiliert die Linux-x64-Laufzeit und

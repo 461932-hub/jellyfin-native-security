@@ -17,6 +17,8 @@ const mixedRowItems = [
     {Id:'66666666666666666666666666666666',Type:'Season',ImageTags:{Primary:'fixture'},ParentThumbItemId:'https://outside.invalid/not-an-item'},
     {Id:'77777777777777777777777777777777',Type:'MusicAlbum',ImageTags:{Primary:'fixture'}}
 ].map(item=>({Name:'Mixed '+item.Type,...item}));
+const batchMovieItems=Array.from({length:42},(_,i)=>({Id:(0x10000+i).toString(16).padStart(32,'0'),
+    Type:'Movie',Name:'Batch movie '+i,ImageTags:{Primary:'poster',Thumb:'thumbnail'}}));
 const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jXioAAAAASUVORK5CYII=', 'base64');
 const requests = [], checks = [];
 let fixtureMode = 'allowed', seriesInformation = false, server, browser, diagnosticPage;
@@ -41,9 +43,9 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
         if (url.pathname.includes('/Users/') && url.pathname.endsWith('/Items')) {
             const permitted = fixtureMode === 'allowed' && req.headers.authorization === 'MediaBrowser Token="fixture-token"';
             res.writeHead(permitted ? 200 : 403, { 'Content-Type': 'application/json' });
-            const knownIds=[id,neighborId,...mixedRowItems.map(item=>item.Id)];
+            const knownIds=[id,neighborId,...mixedRowItems.map(item=>item.Id),...batchMovieItems.map(item=>item.Id)];
             const selected = (url.searchParams.get('Ids') || id).split(',').filter(value => knownIds.includes(value));
-            const send = () => res.end(JSON.stringify({ Items: permitted ? selected.map(value => mixedRowItems.find(item=>item.Id===value) || ({ Id: value,
+            const send = () => res.end(JSON.stringify({ Items: permitted ? selected.map(value => mixedRowItems.find(item=>item.Id===value) || batchMovieItems.find(item=>item.Id===value) || ({ Id: value,
                 Name: value === id ? 'Native fixture title' : 'Neighbor fixture title', Type: 'Movie',
                 Overview: '<img src="https://outside.invalid/leak" onerror="window.injected=1">Safe description',
                 ProductionYear: 2026, Genres: ['Drama'], ImageTags: { Thumb: 'fixture' }, BackdropImageTags: ['fixture'] })) : [] }));
@@ -389,6 +391,39 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
         assert.equal(await page.locator('#mixed-fixture-row .countIndicator').count(),mixedRowItems.length);
         assert.equal(await page.locator('.native-cinema-info').count(),0);
         note('Season links and native badges survive the format correction without replacing their original action at ' + (base || '/'));
+        await page.goto(origin + base + '/web/index.html?movie-thumbnail-batches=1#/home');
+        await page.locator('.native-cinema-hero').waitFor({state:'visible'});
+        await page.addStyleTag({content:'.native-cinema-hero{display:none!important}'});
+        const requestStart=requests.length;
+        await page.evaluate(items=>{
+            const makeCard=item=>{
+                const card=document.createElement('div');card.className='card overflowPortraitCard';card.dataset.id=item.Id;card.dataset.type='Movie';
+                Object.assign(card.style,{width:'100px',height:'auto',flex:'0 0 100px'});
+                const scalable=document.createElement('div');scalable.className='cardScalable';scalable.style.position='relative';
+                const padder=document.createElement('div');padder.className='cardPadder';padder.style.paddingBottom='150%';
+                const art=document.createElement('div');art.className='cardImageContainer';scalable.append(padder,art);card.append(scalable);return card;
+            };
+            const row=document.createElement('div');row.id='batch-movie-fixture';Object.assign(row.style,{display:'grid',gridTemplateColumns:'repeat(8,100px)',gap:'8px'});
+            for(const item of items.slice(0,40))row.append(makeCard(item));
+            const rail=document.createElement('div');rail.id='batch-movie-rail';Object.assign(rail.style,{width:'220px',overflowX:'auto'});
+            const track=document.createElement('div');Object.assign(track.style,{display:'flex',width:'max-content',paddingLeft:'2200px'});
+            for(const item of items.slice(40))track.append(makeCard(item));rail.append(track);
+            document.querySelector('#homeTab .itemsContainer').append(row,rail);
+        },batchMovieItems);
+        await page.waitForFunction(()=>[...document.querySelectorAll('#batch-movie-fixture .card')].every(card=>card.hasAttribute('data-native-cinema-ready')));
+        const batchIds=new Set(batchMovieItems.slice(0,40).map(item=>item.Id));
+        const batchRequests=requests.slice(requestStart).filter(request=>request.path.endsWith('/Users/'+user+'/Items'))
+            .map(request=>(new URLSearchParams(request.query).get('Ids')||'').split(',')).filter(ids=>ids.some(id=>batchIds.has(id)));
+        assert(batchRequests.length>=2);assert(batchRequests.every(ids=>ids.length<=24));
+        const fetchedIds=batchRequests.flat().filter(id=>batchIds.has(id));assert.equal(new Set(fetchedIds).size,40);assert.equal(fetchedIds.length,40);
+        assert.equal(await page.locator('#batch-movie-fixture .native-cinema-art').count(),40);
+        for(const source of await page.locator('#batch-movie-fixture .native-cinema-art').evaluateAll(nodes=>nodes.map(node=>new URL(node.src).pathname)))assert(source.endsWith('/Images/Thumb'));
+        note('All 40 recent movies receive thumbnails across bounded metadata batches without cached cards starving later titles at ' + (base || '/'));
+        await page.locator('#batch-movie-rail').evaluate(rail=>rail.scrollLeft=2200);
+        await page.waitForFunction(()=>[...document.querySelectorAll('#batch-movie-rail .card')].every(card=>card.hasAttribute('data-native-cinema-ready')));
+        for(const source of await page.locator('#batch-movie-rail .native-cinema-art').evaluateAll(nodes=>nodes.map(node=>new URL(node.src).pathname)))assert(source.endsWith('/Images/Thumb'));
+        assert.deepEqual(external,[]);
+        note('Horizontal rail navigation reveals complete movie thumbnails after the bounded row-loading passes at ' + (base || '/'));
         await page.goto(origin + base + '/web/index.html?cinema=off');
         assert.equal(await page.locator('.native-cinema-hero').count(), 0);
         assert.equal(await page.locator('html').getAttribute('class'), 'native-cinema-disabled');
