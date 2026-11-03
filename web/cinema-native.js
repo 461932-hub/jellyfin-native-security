@@ -198,11 +198,28 @@
     function leaveHover() { clearTimeout(leaveTimer); leaveTimer = setTimeout(hideHover, 170); }
     function positionHover(panel, card) {
         const rect = card.querySelector('.cardScalable')?.getBoundingClientRect() || card.getBoundingClientRect();
-        const width = Math.min(innerWidth - 24, Math.max(320, Math.min(420, rect.width * 1.5)));
+        const width = Math.min(innerWidth - 24, Math.max(320, Math.min(480, rect.width * 1.5)));
         const headerBottom = document.querySelector('header.MuiAppBar-root')?.getBoundingClientRect().bottom || 0;
         panel.style.width = width + 'px';
         panel.style.left = Math.max(12, Math.min(innerWidth - width - 12, rect.x + rect.width / 2 - width / 2)) + 'px';
         panel.style.top = Math.max(headerBottom + 8, Math.min(innerHeight - panel.offsetHeight - 12, rect.top - 35)) + 'px';
+    }
+    function animateHover(panel, card, body) {
+        if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        const source = card.querySelector('.cardScalable')?.getBoundingClientRect() || card.getBoundingClientRect();
+        const target = panel.getBoundingClientRect();
+        if (!source.width || !target.width) return;
+        const scale = source.width / target.width;
+        // Begin at the original artwork's position and size. Reveal the action
+        // area as the floating card grows, without moving the native row.
+        const crop = Math.max(0, target.height - source.height / scale);
+        panel.style.transformOrigin = '0 0';
+        panel.animate([
+            { transform: `translate(${source.left - target.left}px,${source.top - target.top}px) scale(${scale})`, clipPath: `inset(0 0 ${crop}px 0 round 12px)` },
+            { transform: 'translate(0,0) scale(1)', clipPath: 'inset(0 0 0 0 round 9px)' }
+        ], { duration: 280, easing: 'cubic-bezier(.2,.8,.2,1)' });
+        body.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'translateY(0)' }],
+            { duration: 180, delay: 80, fill: 'backwards', easing: 'ease-out' });
     }
     async function showHover(card) {
         const auth = session(), ticket = ++hoverTicket, ownGeneration = generation;
@@ -230,7 +247,7 @@
             panel.append(art, body);
             panel.addEventListener('pointerenter', () => clearTimeout(leaveTimer)); panel.addEventListener('pointerleave', leaveHover);
             document.body.append(panel); hover = panel; positionHover(panel, card);
-            if (!matchMedia('(prefers-reduced-motion: reduce)').matches) panel.animate([{ opacity: 0, transform: 'scale(.95)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 180, easing: 'ease-out' });
+            animateHover(panel, card, body);
         } catch { /* Keep native cards usable if extra metadata is unavailable. */ }
     }
     function pointerOver(event) {

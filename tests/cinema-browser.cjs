@@ -91,6 +91,7 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
         note('Metadata uses same-origin authentication headers with no URL session tokens at ' + (base || '/'));
         const sourceRect = await page.locator('.card').boundingBox();
         await page.locator('.card').hover(); await page.locator('.native-cinema-hover').waitFor({state:'visible'});
+        await page.locator('.native-cinema-hover').evaluate(node=>Promise.all(node.getAnimations({subtree:true}).map(animation=>animation.finished.catch(()=>{}))));
         const expanded = await page.locator('.native-cinema-hover').boundingBox();
         assert(expanded.width > sourceRect.width * 1.3);
         assert.equal(await page.locator('.native-cinema-hover').evaluate(node=>node.parentElement===document.body),true);

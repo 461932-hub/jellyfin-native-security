@@ -130,6 +130,8 @@ html:not(.native-cinema-disabled) :is(.itemProgressBarForeground,.sliderBubble,.
 html:not(.native-cinema-disabled) :is(.countIndicator,.playedIndicator,.fullSyncIndicator) { background: #e50914 !important; color: white !important; }
 html:not(.native-cinema-disabled) .sectionTitle { color: #f5f5f1; font-size: 24px; font-weight: 700; letter-spacing: -.4px; }
 html:not(.native-cinema-disabled) .verticalSection { margin-bottom: 30px; }
+/* Library shortcuts already live in the header; omit My Media on Home. */
+html:not(.native-cinema-disabled) #homeTab .homeSectionsContainer > .verticalSection:has(.card[data-type="CollectionFolder"]) { display: none !important; }
 html:not(.native-cinema-disabled) .cardText bdi { display: block; overflow: hidden; text-overflow: ellipsis; }
 html:not(.native-cinema-disabled):not(.native-cinema-catalog-visible) .mainAnimatedPage:has(> .native-cinema-hero) .alphaPicker-fixed-right { visibility: hidden; }
 
