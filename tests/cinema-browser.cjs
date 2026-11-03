@@ -50,7 +50,7 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
               <header class="MuiAppBar-root"><div class="MuiToolbar-root"><a class="MuiButton-root MuiButton-sizeLarge" href="#/">Native Home</a><button id="original-menu">Native menu</button></div></header>
               <div id="indexPage" class="mainAnimatedPage"><div id="homeTab" class="is-active"><div class="itemsContainer">
               <div class="card" data-id="${id}" data-type="Movie"><div class="cardPadder"></div><div class="cardImageContainer"></div><a id="original-details" href="#/details?id=${id}">Details</a><button id="original-play" data-action="play" onclick="fixture.plays++">Native play</button></div>
-              </div></div></div></body></html>`); return;
+              </div></div></div><script>if(location.hash.startsWith('#/tv')||location.hash.startsWith('#/movies')){document.querySelector('.mainAnimatedPage').id=location.hash.startsWith('#/tv')?'tvshowsPage':'moviesPage';document.querySelector('.card').classList.add('backdropCard');window.initialNativeGridRatio=document.querySelector('.card').getBoundingClientRect().width/document.querySelector('.mainAnimatedPage').getBoundingClientRect().width;}</script></body></html>`); return;
         }
         res.writeHead(404); res.end();
     });
@@ -139,7 +139,7 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
             const key='series - dddddddddddddddddddddddddddddddd';
             localStorage.setItem(key,JSON.stringify({ImageType:'Primary',SortBy:['DateCreated'],ShowTitle:false}));
         });
-        await page.goto(origin + base + '/web/index.html#/tv?topParentId=dddddddddddddddddddddddddddddddd');
+        await page.goto(origin + base + '/web/index.html?layout-check=1#/tv?topParentId=dddddddddddddddddddddddddddddddd');
         const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('series - dddddddddddddddddddddddddddddddd')));
         assert.equal(saved.ImageType,'Thumb');assert.equal(saved.ViewMode,'grid');assert.deepEqual(saved.SortBy,['DateCreated']);assert.equal(saved.ShowTitle,false);
         await page.evaluate(()=>{const key='series - dddddddddddddddddddddddddddddddd';const saved=JSON.parse(localStorage.getItem(key));saved.ImageType='Banner';localStorage.setItem(key,JSON.stringify(saved));});
@@ -149,6 +149,12 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
         const initial=await page.evaluate(()=>JSON.parse(localStorage.getItem('movies - dddddddddddddddddddddddddddddddd')));
         assert(initial.SortBy.includes('SortName'));assert.equal(initial.SortOrder,'Ascending');assert.equal(initial.StartIndex,0);assert.equal(initial.ShowTitle,true);assert.equal(initial.ShowYear,true);assert.equal(initial.CardLayout,false);assert.equal(initial.ImageType,'Thumb');
         note('A fresh native movie-view record contains the complete renderer configuration at ' + (base || '/'));
+        fixtureMode='allowed';await page.setViewportSize({width:1600,height:900});
+        await page.goto(origin + base + '/web/index.html?layout-check=2#/tv?topParentId=dddddddddddddddddddddddddddddddd');
+        await page.locator('.native-cinema-hero').waitFor({state:'visible'});
+        assert(Math.abs(await page.evaluate(()=>document.querySelector('.card').getBoundingClientRect().width/document.querySelector('.mainAnimatedPage').getBoundingClientRect().width-initialNativeGridRatio))<.001);
+        assert.equal(await page.locator('.card .native-cinema-art').count(),0);
+        note('Fixed library thumbnail dimensions and native artwork remain unchanged after metadata arrives at ' + (base || '/'));
         await page.goto(origin + base + '/web/index.html?cinema=off');
         assert.equal(await page.locator('.native-cinema-hero').count(), 0);
         assert.equal(await page.locator('html').getAttribute('class'), 'native-cinema-disabled');

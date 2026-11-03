@@ -119,6 +119,7 @@ html:not(.native-cinema-disabled) .cardScalable { border-radius: 12px; }
 html:not(.native-cinema-disabled) :is(.cardImageContainer,.cardContent,.cardOverlayContainer,.blurhash-canvas) { border-radius: 12px; }
 html:not(.native-cinema-disabled) .cardScalable { background: #262626; }
 html:not(.native-cinema-disabled) .card[data-native-cinema-wide] .cardPadder { padding-bottom: 56.25% !important; }
+html.native-cinema-enabled .homePage .card:is([data-type="Movie"],[data-type="Series"]) .cardPadder { padding-bottom: 56.25% !important; }
 html:not(.native-cinema-disabled) .native-cinema-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; opacity: 0; pointer-events: none; }
 html:not(.native-cinema-disabled) [data-native-cinema-ready] .native-cinema-art { opacity: 1; }
 html:not(.native-cinema-disabled) .cardText { color: #eee; line-height: 1.4; }
@@ -193,13 +194,13 @@ html:not(.native-cinema-disabled) .native-cinema-episode-copy span { color: #bbb
 html:not(.native-cinema-disabled) .native-cinema-load-more { width: 100%; padding: 14px; margin-top: 18px; border: 1px solid #555; border-radius: 4px; background: #242424; color: white; cursor: pointer; }
 
 @media(min-width:1101px) {
-    html:not(.native-cinema-disabled) :is(#tvshowsPage,#moviesPage) .card[data-native-cinema-wide] { width: 14.285714%; }
+    html:not(.native-cinema-disabled) :is(#tvshowsPage,#moviesPage) :is(.card[data-native-cinema-wide],.card.backdropCard[data-type="Movie"],.card.backdropCard[data-type="Series"]) { width: 14.285714%; }
 }
 @media(max-width:1100px) {
     html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButton-root { font-size: 14px; padding: 10px 12px; }
     html:not(.native-cinema-disabled) header.MuiAppBar-root > .MuiToolbar-root:first-child { gap: 10px; }
     html:not(.native-cinema-disabled) .native-cinema-hero-copy { width: 70%; }
-    html:not(.native-cinema-disabled) :is(#tvshowsPage,#moviesPage) .card[data-native-cinema-wide] { width: 25%; }
+    html:not(.native-cinema-disabled) :is(#tvshowsPage,#moviesPage) :is(.card[data-native-cinema-wide],.card.backdropCard[data-type="Movie"],.card.backdropCard[data-type="Series"]) { width: 25%; }
 }
 @media(max-width:650px) {
     .native-cinema-loading { inset: 64px 0 0; padding: 0 16px; }
@@ -214,7 +215,7 @@ html:not(.native-cinema-disabled) .native-cinema-load-more { width: 100%; paddin
     html:not(.native-cinema-disabled) .native-cinema-hero-logo { height: 105px; width: 85%; }
     html:not(.native-cinema-disabled) .native-cinema-hero-title { font-size: 32px; }
     html:not(.native-cinema-disabled) .native-cinema-hero-overview { font-size: 14px; }
-    html:not(.native-cinema-disabled) :is(#tvshowsPage,#moviesPage) .card[data-native-cinema-wide] { width: 50%; }
+    html:not(.native-cinema-disabled) :is(#tvshowsPage,#moviesPage) :is(.card[data-native-cinema-wide],.card.backdropCard[data-type="Movie"],.card.backdropCard[data-type="Series"]) { width: 50%; }
     html:not(.native-cinema-disabled) .sectionTitle { font-size: 20px; }
 }
 @media(prefers-reduced-motion:reduce) {

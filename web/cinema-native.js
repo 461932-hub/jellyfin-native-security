@@ -109,6 +109,9 @@
 
     function enhanceCard(card, item, ownGeneration) {
         if (!['Movie', 'Series', 'Episode'].includes(item.Type)) return;
+        // The native thumbnail grid already requests the correct artwork and
+        // reserves its dimensions. Keep React-owned library images unchanged.
+        if (card.closest('#moviesPage,#tvshowsPage')) return;
         if (enhanced.get(card) === ownGeneration && card.querySelector('.native-cinema-art')) return;
         const container = card.querySelector('.cardImageContainer:not(.cardOverlayContainer .cardImageContainer)');
         if (!container) return;
