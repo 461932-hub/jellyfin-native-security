@@ -29,7 +29,9 @@ docker run --detach --name "$task_container" \
 task_ready=false
 for task_try in $(seq 1 90); do
     if curl --silent --fail --max-time 3 http://127.0.0.1:18099/health > /tmp/native-health.txt \
-        && curl --silent --fail --max-time 3 http://127.0.0.1:18099/System/Info/Public > /tmp/native-public-info.json; then
+        && curl --silent --fail --max-time 3 --dump-header /tmp/native-ready-headers.txt \
+            http://127.0.0.1:18099/System/Info/Public > /tmp/native-public-info.json \
+        && grep -qi '^X-Jellyfin-Media-Security: native-preview-1' /tmp/native-ready-headers.txt; then
         task_ready=true
         break
     fi
