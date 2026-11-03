@@ -171,7 +171,9 @@ html:not(.native-cinema-disabled) .native-cinema-hover-genres { font-size: 15px;
 
 /* Cinema information sheet; original advanced details remain one link away. */
 html:not(.native-cinema-disabled) .native-cinema-info { box-sizing: border-box; position: fixed; inset: 32px 0 auto; width: min(900px,calc(100vw - 48px)); max-width: none; max-height: calc(100svh - 64px); margin: 0 auto; padding: 0; border: 0; border-radius: 12px; overflow-y: auto; overscroll-behavior: contain; background: #181818; color: #eee; box-shadow: 0 30px 100px #000c; font: 15px Arial,Helvetica,sans-serif; }
-.native-cinema-info::backdrop { background: #000b; backdrop-filter: blur(5px); }
+.native-cinema-info::backdrop { background: #000b; backdrop-filter: blur(5px); animation: native-cinema-backdrop-in 240ms ease-out; }
+@keyframes native-cinema-backdrop-in { from { opacity: 0; backdrop-filter: blur(0); } to { opacity: 1; backdrop-filter: blur(5px); } }
+html:not(.native-cinema-disabled) .native-cinema-info:has(.native-cinema-info-loading-art) { min-height: min(640px,calc(100svh - 64px)); }
 html:not(.native-cinema-disabled) .native-cinema-info-close { position: absolute; right: 16px; top: 16px; z-index: 4; background: #181818cc; border: 0; }
 html:not(.native-cinema-disabled) .native-cinema-info-art { position: relative; aspect-ratio: 16/9; background: #252525; }
 html:not(.native-cinema-disabled) .native-cinema-info-image { display: block; width: 100%; height: 100%; object-fit: cover; }
@@ -222,4 +224,5 @@ html:not(.native-cinema-disabled) .native-cinema-load-more { width: 100%; paddin
 }
 @media(prefers-reduced-motion:reduce) {
     html:not(.native-cinema-disabled) .native-cinema-art { transition: none; }
+    .native-cinema-info::backdrop { animation: none; }
 }

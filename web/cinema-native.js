@@ -287,6 +287,35 @@
         if (restore && old.cinemaTrigger?.isConnected) old.cinemaTrigger.focus({ preventScroll: true });
     }
 
+    function detailOrigin(id, card, trigger) {
+        const preview = hoverCard?.dataset.id === id ? hover : null;
+        const source = preview?.querySelector('.native-cinema-hover-art')
+            || trigger?.closest?.('.native-cinema-hero') || card?.querySelector('.cardScalable') || card;
+        const rect = source?.getBoundingClientRect();
+        const image = source?.querySelector('img.native-cinema-hover-image,img.native-cinema-hero-image,img.native-cinema-art');
+        let imageSrc;
+        if (image?.src) {
+            const url = new URL(image.src, location.href);
+            if (url.origin === location.origin && url.pathname.startsWith(base + '/Items/')) imageSrc = url.href;
+        }
+        return { rect: rect?.width > 0 && rect?.height > 0 ? rect : null, imageSrc };
+    }
+
+    function animateDetails(dialog, source) {
+        if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        const target = dialog.getBoundingClientRect();
+        let first = { opacity: 0, transform: 'translateY(24px) scale(.96)' };
+        if (source && target.width > 0) {
+            const scale = Math.min(1, source.width / target.width);
+            const crop = Math.max(0, target.height - source.height / scale);
+            first = { opacity: 1, transform: `translate(${source.left - target.left}px,${source.top - target.top}px) scale(${scale})`,
+                clipPath: `inset(0 0 ${crop}px 0 round 9px)` };
+        }
+        dialog.style.transformOrigin = '0 0';
+        dialog.animate([first, { opacity: 1, transform: 'translate(0,0) scale(1)', clipPath: 'inset(0 0 0 0 round 12px)' }],
+            { duration: 340, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    }
+
     async function episodeSection(dialog, series, auth, ticket) {
         const section = element('section', 'native-cinema-episodes');
         const heading = element('h3', '', 'Folgen'); const select = element('select', 'native-cinema-season'); select.setAttribute('aria-label', 'Staffel');
@@ -327,22 +356,29 @@
 
     async function openDetails(id, card, trigger) {
         const auth = session(); if (!auth || !validId(id)) return;
+        // Capture the artwork before removing the hover card. The loading and
+        // completed states use the same frame, so opening never starts tiny.
+        const origin = detailOrigin(id, card, trigger);
         hideHover(); closeDetails(false); const ticket = ++detailsTicket;
         const dialog = element('dialog', 'native-cinema-info'); dialog.dataset.nativeCinemaOwned = '';
         dialog.cinemaTrigger = trigger?.isConnected ? trigger : currentCard(id, card)?.querySelector('a[href*="#/details?"]');
         dialog.setAttribute('aria-label', 'Filminformationen');
         const close = actionIcon('close', 'Schließen', () => closeDetails()); close.classList.add('native-cinema-info-close');
         const status = element('p', 'native-cinema-info-status', 'Informationen werden geladen …'); status.setAttribute('role', 'status');
-        dialog.append(close, status); document.body.append(dialog); details = dialog; detailsAbort = new AbortController();
+        const loadingArt = element('div', 'native-cinema-info-art native-cinema-info-loading-art');
+        loadingArt.setAttribute('aria-hidden', 'true');
+        if (origin.imageSrc) { const image = element('img', 'native-cinema-info-image'); image.alt = ''; image.src = origin.imageSrc; loadingArt.append(image); }
+        dialog.append(close, loadingArt, status); document.body.append(dialog); details = dialog; detailsAbort = new AbortController();
         dialog.addEventListener('cancel', event => { event.preventDefault(); closeDetails(); });
         dialog.addEventListener('keydown', event => { event.stopPropagation(); if (event.key === 'Escape') { event.preventDefault(); closeDetails(); } });
         dialog.addEventListener('click', event => { if (event.target === dialog) { const rect = dialog.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeDetails(); } });
         dialog.addEventListener('close', () => { if (details === dialog) closeDetails(); });
         dialog.showModal();
+        animateDetails(dialog, origin.rect);
         try {
             const item = await readJson('/Users/' + auth.user + '/Items/' + id, auth, detailsAbort.signal);
             if (details !== dialog || ticket !== detailsTicket || session()?.key !== auth.key || item.Id !== id) return;
-            status.remove(); dialog.setAttribute('aria-label', item.Name || 'Filminformationen');
+            status.remove(); loadingArt.remove(); dialog.setAttribute('aria-label', item.Name || 'Filminformationen');
             const art = element('div', 'native-cinema-info-art'), image = element('img', 'native-cinema-info-image'); image.alt = '';
             image.src = imageUrl(item, item.BackdropImageTags?.length ? 'Backdrop' : landscape(item), 1600);
             const copy = element('div', 'native-cinema-info-copy');

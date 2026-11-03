@@ -1,3 +1,8 @@
+Preview 8: Der Vorschaupfeil oeffnet das Infofenster mit Cinema-Animation.
+Das Fenster waechst aus dem aktuellen Vorschaubild; der Ladezustand behaelt
+den grossen Rahmen. Der Hintergrund wird weich eingeblendet. Escape und
+Schliessen bleiben sofort moeglich; reduzierte Bewegung wird respektiert.
+
 Preview 7: Cinema startet direkt als Standardoberflaeche.
 
 - Das Einstiegdokument laedt Cinema-Startlogik und Gestaltung vor dem Client.
@@ -19,7 +24,7 @@ Die nativen Medien- und Bibliothekspruefungen sowie der TV-Direct-Play-Fix aus
 Preview 3 bleiben unveraendert. Native TV-Apps laden nicht diese Weboberflaeche.
 
 Die vorhandene CasaOS-Test-App auf folgendes Image aktualisieren:
-ghcr.io/461932-hub/jellyfin-native-security:12.4-preview7
+ghcr.io/461932-hub/jellyfin-native-security:12.4-preview8
 Vorhandene Port-, Medien-, Config- und Cache-Pfade beibehalten. Danach den
 Browser mit Strg+F5 neu laden. Der Wechsel ist erst nach dem NAS-Update aktiv.
 
