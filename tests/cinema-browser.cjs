@@ -17,6 +17,10 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
         const url = new URL(req.url, 'http://fixture.invalid');
         requests.push({ path: url.pathname, query: url.search, auth: req.headers.authorization || '' });
         const base = url.pathname.startsWith('/media/') ? '/media' : '';
+        if (url.pathname.endsWith('/web/cinema-logo.png')) {
+            res.writeHead(200, { 'Content-Type': 'image/png' });
+            res.end(fs.readFileSync(path.join(assets, 'cinema-logo.png'))); return;
+        }
         if (/\/web\/cinema-(native\.(js|css)|boot\.js)$/.test(url.pathname)) {
             const file = path.basename(url.pathname);
             res.writeHead(200, { 'Content-Type': file.endsWith('.js') ? 'application/javascript; charset=utf-8' : 'text/css; charset=utf-8' });

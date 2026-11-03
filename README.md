@@ -14,7 +14,7 @@ liegen unter `server/`; `SOURCE-PATCH.diff` zeigt die Aenderungen gegen
 ## Installation ueber CasaOS
 
 Nach einem erfolgreichen Lauf unter **Actions** steht das Image unter
-`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview9` bereit.
+`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview10` bereit.
 Der Kontoinhaber muss das GitHub-Containerpaket einmal unter **Packages ->
 jellyfin-native-security -> Package settings -> Change visibility -> Public**
 oeffentlich lesbar machen. Ein oeffentliches Repository allein aendert die
@@ -81,6 +81,11 @@ Standbilder, breite Medienkarten, runde Auswahlflaechen und passende Menues
 lehnen sich an das Cinema-Projekt an. Vorschauen enthalten keine eigenen
 Videoelemente und keine Tonsteuerung.
 
+Das Wortlogo verwendet das unveraenderte originale Cinema-Bild statt eines
+Schrift-Ersatzes. In der Verwaltungsuebersicht stehen dieses Logo und die
+native Versionsnummer nebeneinander. Der konfigurierte Servername bleibt
+erhalten; sein Text wird dort nur visuell ausgeblendet.
+
 Die vorhandenen Jellyfin-Seiten, Navigationslinks, Such-, Filter-, SyncPlay-,
 Cast- und Kontomenues bleiben erhalten. Der neue grosse Abspielknopf klickt
 die vorhandene native Abspieltaste desselben Titels; er startet keinen eigenen
@@ -135,7 +140,7 @@ vorhandene TV-Direct-Play-Pfad wird nicht umgestellt.
 ## Build und Nachweise
 
 ```sh
-docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview9 .
+docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview10 .
 ```
 
 Der Build prueft die Quellpruefsummen, kompiliert die Linux-x64-Laufzeit und

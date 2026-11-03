@@ -246,3 +246,30 @@ html:not(.native-cinema-disabled) .native-cinema-load-more { width: 100%; paddin
     html:not(.native-cinema-disabled) .native-cinema-art { transition: none; }
     .native-cinema-info::backdrop,.native-cinema-info.is-closing::backdrop { animation: none; }
 }
+
+/* BEGIN NATIVE CINEMA ORIGINAL LOGO */
+html:not(.native-cinema-disabled) { --native-cinema-brand-logo: url("cinema-logo.png?v=270d566d"); }
+html:not(.native-cinema-disabled) .pageTitleWithDefaultLogo::before,
+html:not(.native-cinema-disabled) header.MuiAppBar-root a.MuiButton-sizeLarge[href="#/"]::before {
+    content: '' !important; display: block; width: 90px; height: 36px; flex: 0 0 90px;
+    background-image: var(--native-cinema-brand-logo); background-size: 116% auto; background-position: center; background-repeat: no-repeat;
+}
+html:not(.native-cinema-disabled) header.MuiAppBar-root a.MuiButton-sizeLarge[href="#/"] { min-width: 90px; }
+/* Preserve the native home link and the actual server version in the drawer. */
+html:not(.native-cinema-disabled) .MuiDrawer-paper > .MuiList-root:first-child > .MuiListItem-root:has(> a[href="#/"] > .MuiListItemIcon-root > img) { padding: 0; }
+html:not(.native-cinema-disabled) .MuiDrawer-paper > .MuiList-root:first-child a[href="#/"]:has(> .MuiListItemIcon-root > img) {
+    min-height: 88px; box-sizing: border-box; padding: 24px 16px; display: flex; align-items: center; gap: 12px;
+}
+html:not(.native-cinema-disabled) .MuiDrawer-paper > .MuiList-root:first-child a[href="#/"]:has(> .MuiListItemIcon-root > img) > .MuiListItemIcon-root {
+    width: 90px; min-width: 90px; height: 36px; flex: 0 0 90px; margin: 0;
+    background-image: var(--native-cinema-brand-logo); background-size: 116% auto; background-position: center; background-repeat: no-repeat;
+}
+html:not(.native-cinema-disabled) .MuiDrawer-paper > .MuiList-root:first-child a[href="#/"] > .MuiListItemIcon-root > img { display: none; }
+html:not(.native-cinema-disabled) .MuiDrawer-paper > .MuiList-root:first-child a[href="#/"]:has(> .MuiListItemIcon-root > img) > .MuiListItemText-root { margin: 0; flex: 0 0 auto; }
+html:not(.native-cinema-disabled) .MuiDrawer-paper > .MuiList-root:first-child a[href="#/"]:has(> .MuiListItemIcon-root > img) .MuiListItemText-primary {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+html:not(.native-cinema-disabled) .MuiDrawer-paper > .MuiList-root:first-child a[href="#/"]:has(> .MuiListItemIcon-root > img) .MuiListItemText-secondary {
+    font: 13px/1.4 Arial,Helvetica,sans-serif; color: #ccc; white-space: nowrap;
+}
+/* END NATIVE CINEMA ORIGINAL LOGO */

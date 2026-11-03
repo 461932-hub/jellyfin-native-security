@@ -1,7 +1,7 @@
 name: jellyfin-native-security-test
 services:
   jellyfin:
-    image: ghcr.io/461932-hub/jellyfin-native-security:12.4-preview9
+    image: ghcr.io/461932-hub/jellyfin-native-security:12.4-preview10
     container_name: jellyfin-native-security-test
     platform: linux/amd64
     user: "0:0"
@@ -60,4 +60,4 @@ x-casaos:
   description:
     en_us: Separate Jellyfin 12.4 test server with native media authorization. Explicit HTTP LAN test on port 8099.
     de_de: Getrennter Jellyfin-12.4-Testserver mit nativer Medienabsicherung. Ausdruecklicher HTTP-Test im Heimnetz auf Port 8099.
-  version: 12.4-preview9
+  version: 12.4-preview10
