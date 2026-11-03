@@ -58,6 +58,7 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
         await page.goto(origin + base + '/web/index.html');
         await page.locator('.native-cinema-hero').waitFor();
         await page.waitForFunction(() => document.querySelector('.native-cinema-hero-image')?.naturalWidth > 0);
+        assert.equal(await page.evaluate(() => scrollY), 0, 'The asynchronously added preview must not skip the top of the page');
         assert.equal(await page.locator('.native-cinema-hero video,.native-cinema-hero audio').count(), 0);
         assert.equal(await page.locator('.native-cinema-hero-overview').textContent(), 'Safe description');
         assert.deepEqual(external, []); assert.equal(await page.evaluate(() => window.injected), undefined);
