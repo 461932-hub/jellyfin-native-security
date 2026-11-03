@@ -25,6 +25,14 @@ trap task_cleanup EXIT
 mkdir -p "$task_bind/config" "$task_bind/cache" "$task_bind/media" \
     "$task_bind/foreign" "$task_bind/private"
 printf 'original-media-marker\n' > "$task_bind/media/marker"
+docker run --rm --read-only --cap-drop ALL --user "$(id -u):$(id -g)" \
+    --entrypoint /usr/lib/jellyfin-ffmpeg/ffmpeg \
+    --mount "type=bind,source=$task_bind/media,target=/fixture" \
+    "$task_image" -hide_banner -loglevel error \
+    -f lavfi -i 'color=c=blue:s=320x180:r=10:d=4' \
+    -f lavfi -i 'sine=frequency=440:sample_rate=48000:duration=4' \
+    -c:v libx264 -pix_fmt yuv420p -c:a aac -ac 2 -shortest -movflags +faststart \
+    '/fixture/Native Identity Fixture (2026).mp4'
 sudo chown 0:0 "$task_bind/config" "$task_bind/cache" "$task_bind/foreign"
 printf 'foreign-data-marker\n' | sudo tee "$task_bind/foreign/keep" >/dev/null
 sudo chown 2000:2000 "$task_bind/private"
@@ -109,6 +117,8 @@ for task_path in \
     [[ "$task_status" == 401 ]]
     grep -qi '^X-Jellyfin-Media-Security: native-preview-1' /tmp/native-headers.txt
 done
+
+python3 tests/tv-device-identity.py
 
 # A restart with the now nonempty, correctly owned directories must also work.
 docker restart "$task_container" >/dev/null

@@ -72,37 +72,6 @@
 +  </ItemGroup>
 +
  </Project>
---- a/Jellyfin.Server/Startup.cs
-+++ b/Jellyfin.Server/Startup.cs
-@@ -1,3 +1,4 @@
-+// Modified 2026-11-02 for the native media-security test fork; see SOURCE-PATCH.diff.
- using System;
- using System.Globalization;
- using System.IO;
-@@ -9,6 +10,7 @@
- using Emby.Server.Implementations.EntryPoints;
- using Emby.Server.Implementations.Localization;
- using Jellyfin.Api.Middleware;
-+using Jellyfin.Api.Security;
- using Jellyfin.Database.Implementations;
- using Jellyfin.LiveTv.Extensions;
- using Jellyfin.LiveTv.Recordings;
-@@ -78,6 +80,7 @@
-             services.AddCustomAuthentication();
- 
-             services.AddJellyfinApiAuthorization();
-+            services.AddNativeMediaSecurity(_configuration, _serverApplicationHost.SystemId);
- 
-             var productHeader = new ProductInfoHeaderValue(
-                 _serverApplicationHost.Name.Replace(' ', '-'),
-@@ -229,6 +232,7 @@
-                 }
- 
-                 mainApp.UseStaticFiles();
-+                mainApp.UseNativeMediaCapabilities();
-                 mainApp.UseAuthentication();
-                 mainApp.UseJellyfinApiSwagger(_serverConfigurationManager);
-                 mainApp.UseQueryStringDecoding();
 --- /dev/null
 +++ b/Jellyfin.Api/Security/AndroidTvImageFilter.cs
 @@ -0,0 +1,204 @@
@@ -1360,7 +1329,8 @@
 +}
 --- /dev/null
 +++ b/Jellyfin.Api/Security/SecurePlaybackGrantMiddleware.cs
-@@ -0,0 +1,67 @@
+@@ -0,0 +1,72 @@
++// Updated 2026-11-03: retain the authenticated TV user-session DeviceId.
 +using System;
 +using System.Linq;
 +using System.Threading.Tasks;
@@ -1416,7 +1386,11 @@
 +        // The native handler still validates the real session, revocation and
 +        // account status. A separate MVC filter binds the resulting identity.
 +        http.Items[GrantAuthentication] = accepted;
-+        http.Request.Headers.Authorization = "MediaBrowser Token=\"" + accepted.Token + "\"";
++        // Android TV derives a user-specific DeviceId after login. Preserve the
++        // identity bound to the grant instead of falling back to the token's
++        // original login DeviceId. The native handler still validates the token.
++        http.Request.Headers.Authorization = "MediaBrowser Token=\"" + accepted.Token
++            + "\", DeviceId=\"" + accepted.DeviceId + "\"";
 +        http.Response.OnStarting(() =>
 +        {
 +            http.Response.Headers.CacheControl = "private, no-store";
@@ -1748,6 +1722,37 @@
 +    }).observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'src'] });
 +    setInterval(() => { const auth = session(); if (!auth || auth.key !== currentSession) reset(auth?.key || ''); }, 1000);
 +})();
+--- a/Jellyfin.Server/Startup.cs
++++ b/Jellyfin.Server/Startup.cs
+@@ -1,3 +1,4 @@
++// Modified 2026-11-02 for the native media-security test fork; see SOURCE-PATCH.diff.
+ using System;
+ using System.Globalization;
+ using System.IO;
+@@ -9,6 +10,7 @@
+ using Emby.Server.Implementations.EntryPoints;
+ using Emby.Server.Implementations.Localization;
+ using Jellyfin.Api.Middleware;
++using Jellyfin.Api.Security;
+ using Jellyfin.Database.Implementations;
+ using Jellyfin.LiveTv.Extensions;
+ using Jellyfin.LiveTv.Recordings;
+@@ -78,6 +80,7 @@
+             services.AddCustomAuthentication();
+ 
+             services.AddJellyfinApiAuthorization();
++            services.AddNativeMediaSecurity(_configuration, _serverApplicationHost.SystemId);
+ 
+             var productHeader = new ProductInfoHeaderValue(
+                 _serverApplicationHost.Name.Replace(' ', '-'),
+@@ -229,6 +232,7 @@
+                 }
+ 
+                 mainApp.UseStaticFiles();
++                mainApp.UseNativeMediaCapabilities();
+                 mainApp.UseAuthentication();
+                 mainApp.UseJellyfinApiSwagger(_serverConfigurationManager);
+                 mainApp.UseQueryStringDecoding();
 --- /dev/null
 +++ b/tests/Jellyfin.Api.Tests/Security/NativeMediaSecurityTests.cs
 @@ -0,0 +1,248 @@
@@ -1909,7 +1914,7 @@
 +            context =>
 +            {
 +                called = true;
-+                Assert.Equal("MediaBrowser Token=\"" + NativeToken + "\"", context.Request.Headers.Authorization);
++                Assert.Equal("MediaBrowser Token=\"" + NativeToken + "\", DeviceId=\"" + Device + "\"", context.Request.Headers.Authorization);
 +                return Task.CompletedTask;
 +            },
 +            store,

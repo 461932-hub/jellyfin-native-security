@@ -7,11 +7,11 @@ RUN sha256sum -c SOURCE.SHA256SUMS --quiet && \
     -c Release -r linux-x64 --self-contained true -o /out \
     -m:1 -nr:false -p:UseSharedCompilation=false \
     -p:Version=12.4.0 -p:AssemblyVersion=12.4.0.0 \
-    -p:FileVersion=12.4.0.1 -p:RuntimeFrameworkVersion=10.0.14
+    -p:FileVersion=12.4.0.2 -p:RuntimeFrameworkVersion=10.0.14
 
 FROM jellyfin/jellyfin:12.4@sha256:7da5184caa38c553f219f6772476540081f392a68049e2b68c923f6daf877f8e
 LABEL org.opencontainers.image.title="Jellyfin native security preview" \
-      org.opencontainers.image.version="12.4-preview2" \
+      org.opencontainers.image.version="12.4-preview3" \
       org.opencontainers.image.source="https://github.com/461932-hub/jellyfin-native-security" \
       org.opencontainers.image.licenses="GPL-2.0"
 COPY --from=build /out/ /jellyfin/

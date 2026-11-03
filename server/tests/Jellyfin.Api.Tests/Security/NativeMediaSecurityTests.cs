@@ -156,7 +156,7 @@ public sealed class NativeMediaSecurityTests
             context =>
             {
                 called = true;
-                Assert.Equal("MediaBrowser Token=\"" + NativeToken + "\"", context.Request.Headers.Authorization);
+                Assert.Equal("MediaBrowser Token=\"" + NativeToken + "\", DeviceId=\"" + Device + "\"", context.Request.Headers.Authorization);
                 return Task.CompletedTask;
             },
             store,

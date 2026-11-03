@@ -41,5 +41,9 @@
     "tests/Jellyfin.Api.Tests/Security/NativeMediaSecurityTests.cs"
   ],
   "dockerContainerTested": false,
-  "physicalAndroidTvTested": false
+  "physicalAndroidTvTested": false,
+  "nativeCandidate": "12.4-preview3",
+  "apiFileVersion": "12.4.0.2",
+  "tvUserSpecificDeviceIdPreserved": true,
+  "physicalAndroidTvFixVerified": false
 }

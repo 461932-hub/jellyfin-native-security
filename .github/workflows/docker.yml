@@ -16,7 +16,7 @@ jobs:
       packages: write
     env:
       IMAGE: ghcr.io/${{ github.repository }}
-      VERSION: 12.4-preview2
+      VERSION: 12.4-preview3
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -35,7 +35,7 @@ jobs:
             mcr.microsoft.com/dotnet/sdk:10.0.403 \
             dotnet test tests/Jellyfin.Api.Tests/Jellyfin.Api.Tests.csproj \
             -c Release -m:1 -nr:false -p:UseSharedCompilation=false \
-            -p:Version=12.4.0 -p:AssemblyVersion=12.4.0.0 -p:FileVersion=12.4.0.1 \
+            -p:Version=12.4.0 -p:AssemblyVersion=12.4.0.0 -p:FileVersion=12.4.0.2 \
             --logger 'trx;LogFileName=api-linux.trx' --results-directory /src/test-results
       - name: Build from the full source code
         run: |
@@ -57,10 +57,10 @@ jobs:
         run: |
           if gh release view "$VERSION" >/dev/null 2>&1; then
             gh release upload "$VERSION" CasaOS-Import.yaml image-digest.txt \
-              test-results/docker-smoke.json test-results/api-linux.trx --clobber
+              test-results/docker-smoke.json test-results/tv-device-identity.json test-results/api-linux.trx --clobber
           else
             gh release create "$VERSION" --target "$GITHUB_SHA" --prerelease \
               --title 'Jellyfin 12.4 native security - CasaOS test candidate' \
               --notes-file RELEASE-NOTES.md CasaOS-Import.yaml image-digest.txt \
-              test-results/docker-smoke.json test-results/api-linux.trx
+              test-results/docker-smoke.json test-results/tv-device-identity.json test-results/api-linux.trx
           fi

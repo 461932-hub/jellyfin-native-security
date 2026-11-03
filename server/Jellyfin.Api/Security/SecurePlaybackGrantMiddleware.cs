@@ -1,3 +1,4 @@
+// Updated 2026-11-03: retain the authenticated TV user-session DeviceId.
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -53,7 +54,11 @@ internal sealed class SecurePlaybackGrantMiddleware(RequestDelegate next,
         // The native handler still validates the real session, revocation and
         // account status. A separate MVC filter binds the resulting identity.
         http.Items[GrantAuthentication] = accepted;
-        http.Request.Headers.Authorization = "MediaBrowser Token=\"" + accepted.Token + "\"";
+        // Android TV derives a user-specific DeviceId after login. Preserve the
+        // identity bound to the grant instead of falling back to the token's
+        // original login DeviceId. The native handler still validates the token.
+        http.Request.Headers.Authorization = "MediaBrowser Token=\"" + accepted.Token
+            + "\", DeviceId=\"" + accepted.DeviceId + "\"";
         http.Response.OnStarting(() =>
         {
             http.Response.Headers.CacheControl = "private, no-store";

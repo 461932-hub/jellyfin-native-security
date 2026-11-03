@@ -14,7 +14,7 @@ liegen unter `server/`; `SOURCE-PATCH.diff` zeigt die Aenderungen gegen
 ## Installation ueber CasaOS
 
 Nach einem erfolgreichen Lauf unter **Actions** steht das Image unter
-`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview2` bereit.
+`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview3` bereit.
 Der Kontoinhaber muss das GitHub-Containerpaket einmal unter **Packages ->
 jellyfin-native-security -> Package settings -> Change visibility -> Public**
 oeffentlich lesbar machen. Ein oeffentliches Repository allein aendert die
@@ -47,6 +47,19 @@ benannte Docker-Volumes als `[object Object]` uebernehmen. Die Portzuordnung
 lautet **Host 8099 -> Container 8096**. Ein eventuell noch offenes Formular mit
 falschen Werten schliessen und die neue Importdatei erneut laden.
 
+Preview 3 korrigiert ausserdem den Android-TV-Geraetekontext: Die App verwendet
+nach der Anmeldung eine benutzerspezifische DeviceId, die von der urspruenglich
+beim Token gespeicherten Geraetekennung abweichen kann. Der begrenzte Direktstream
+uebernimmt jetzt die bei seiner Erstellung authentifizierte Kennung. Der native
+Server prueft weiterhin Sitzungstoken, Widerruf, Bibliotheksrechte und die Bindung
+an Film, Quelle und Wiedergabesitzung. Diese Korrektur verhindert den dadurch
+verursachten HTTP-401-Direktstartfehler und den anschliessenden Player-Fallback.
+
+Bei `ContainerBitrateExceedsLimit` die maximale Streaming-Bitrate der TV-App
+beziehungsweise die gewaehlte Wiedergabequalitaet pruefen. Ein beispielsweise
+auf 2 Mbit/s begrenzter Client kann auch eine passende H264-Datei oberhalb dieses
+Limits absichtlich umwandeln lassen.
+
 Der kurze Starthelfer beginnt als root und setzt ausschliesslich die Besitzer
 leerer `/config`- und `/cache`-Mountwurzeln auf **1000:1000**. Er verweigert die
 automatische Aenderung fremder nichtleerer oder nicht lesbarer Verzeichnisse.
@@ -64,7 +77,7 @@ Erweiterungen; dieses Image verwendet zuerst die Original-Weboberflaeche.
 ## Build und Nachweise
 
 ```sh
-docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview2 .
+docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview3 .
 ```
 
 Der Build prueft die Quellpruefsummen, kompiliert die Linux-x64-Laufzeit und
@@ -78,7 +91,10 @@ stehen in `PRUEFBERICHT.txt` und `PROXY-HINWEISE.txt`. Der GitHub-Build fuehrt
 die API-Tests erneut unter Linux sowie einen getrennten echten Docker-Start
 mit frisch angelegten root-eigenen Bind-Ordnern und anonymen Bild-/Videoanfragen
 aus. Zusaetzlich werden der Rechteabwurf, der Neustart mit vorhandenen Daten,
-die Ablehnung fremder Verzeichnisse und der Medien-Leseschutz geprueft. Ergebnisse stehen
+die Ablehnung fremder Verzeichnisse und der Medien-Leseschutz geprueft. Ein
+weiterer echter Laufzeittest reproduziert die geaenderte TV-Geraetekennung,
+prueft den originalen Videoabruf, Bibliotheksrechte, Stoppen und Abmelden.
+Ergebnisse stehen
 erst nach erfolgreichem CI-Lauf im Release zur Verfuegung.
 
 Ein physischer Fire-TV-Test dieses Forks sowie der echte Produktionsproxy
