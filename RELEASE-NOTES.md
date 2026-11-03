@@ -1,27 +1,27 @@
-Preview 15: Rote Buchstabenauswahl mit Zuruecksetzen beim Seitenwechsel.
+Preview 16: Folgenanzahl direkt hinter den Staffelnamen.
 
-Die Buchstabenleiste zeigt die aktive Auswahl in Cinema-Rot. Beim Wechsel von
-Serien zur Startseite oder zu einer anderen Bibliothek werden die Markierung
-und der tatsaechliche Alphabetfilter gemeinsam aufgehoben. Auch alte gespeicherte
-Buchstaben der Zielansicht werden entfernt. Browser-Zurueck und Bibliotheks-/
-Tabwechsel werden beruecksichtigt. Ein neuer Seitenaufruf startet ohne alten
-Buchstabenfilter.
+In der Folgenauswahl stehen jetzt Staffelnamen und Gesamtzahl zusammen,
+beispielsweise "Staffel 1 · 25 Folgen". "Alle Staffeln" zeigt ebenfalls die
+Gesamtzahl. Eine einzelne Folge wird als "1 Folge" angezeigt, eine leere
+Staffel als "0 Folgen". Die Auswahlwerte und die originale Folgenwiedergabe
+bleiben erhalten.
 
-Dafuer wird Jellyfins eigener Alphabet-Ansichtswert zurueckgesetzt, einschliesslich
-der Seitenposition. Sortierung, andere Filter, Titelanzeige und Bildtyp bleiben
-erhalten. Verhindert ein Infofenster die Linknavigation oder bleibt man in
-derselben Bibliotheksansicht, bleibt die aktive Buchstabenauswahl erhalten.
-Die originalen Buchstabenknopfe und Medienabfragen bleiben angebunden.
+Die Zahlen werden mit der aktuellen Anmeldung ueber dieselbe Serien-/
+Folgenschnittstelle ermittelt. Zaehlanfragen verwenden Limit 0, ohne Bilder und
+Benutzerdaten; maximal drei laufen parallel. Die bestehende paginierte
+Folgenantwort aktualisiert die Zahl der aktuellen Auswahl ebenfalls. Fehlerhafte
+oder fehlende Zaehler blockieren die Auswahl nicht. Schliessen, Titelwechsel
+und Abmeldung verhindern weitere Anfragen und spaete Aktualisierungen.
 
 Vorhandene CasaOS-Test-App aktualisieren:
-ghcr.io/461932-hub/jellyfin-native-security:12.4-preview15
+ghcr.io/461932-hub/jellyfin-native-security:12.4-preview16
 Ports und Ordner beibehalten. Anschliessend Strg+F5.
 
-Pruefung: 86 Browserfaelle fuer / und /media, einschliesslich roter Markierung,
-verhindertem Detail-Link, gleichbleibender Ansicht, Navigation ohne Hash-Ereignis,
-Startseite, Serien/Filme, altem Zielfilter, Browser-Zurueck und erhaltener
-Sortierung/weiteren Filtern. Echte native Oberflaeche: A filtert 62 Serien auf
-einen Eintrag; nach dem Wechsel und der Rueckkehr erscheinen wieder alle 62.
-Originale Kopfzeilenlinks, Filmansicht und Auswahl # mit Browser-Zurueck geprueft.
-Keine Wiedergabe gestartet. Bestehende API-, TV-Identitaets- und Docker-Pruefungen.
+Pruefung: 90 Browserfaelle fuer / und /media; Gesamtzahl statt angezeigter
+Seitengroesse, Einzahl/Mehrzahl/0, fehlgeschlagener Zaehler, weiter funktionierende
+Auswahl/Wiedergabe und abgebrochene Zaehler ohne Uebernahme in den naechsten Titel.
+Echte native Oberflaeche: Re:ZERO mit vier Staffeln (25, 25, 16, 7 Folgen),
+Gesamtzahl 73, jeweils unabhaengig gegen die API geprueft. Authentifizierte
+Zaehlanfragen, maximal drei gleichzeitig, sowie Staffelauswahl und Schliessen
+geprueft. Keine Wiedergabe gestartet. Bestehende API-, TV- und Docker-Pruefungen.
 Eigener Testkandidat, keine offizielle Jellyfin-Veroeffentlichung.

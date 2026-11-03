@@ -455,7 +455,30 @@
         const rows = element('div', 'native-cinema-episode-rows'), status = element('p', 'native-cinema-info-status');
         const more = element('button', 'native-cinema-load-more', 'Weitere Folgen'); more.type = 'button'; more.hidden = true;
         section.append(heading, select, status, rows, more); dialog.querySelector('.native-cinema-info-body').append(section);
-        let start = 0, seasonId = '', episodeTicket = 0;
+        let start = 0, seasonId = '', episodeTicket = 0, allOption;
+        const signal = detailsAbort.signal, seasonOptions = new Map(), pageCounts = new Set();
+        const current = () => details === dialog && ticket === detailsTicket && session()?.key === auth.key && !signal.aborted;
+        function setCount(id, count, fromPage = false) {
+            if (!current() || !Number.isSafeInteger(count) || count < 0 || (!fromPage && pageCounts.has(id))) return;
+            const option = id ? seasonOptions.get(id) : allOption;
+            if (!option) return;
+            if (fromPage) pageCounts.add(id);
+            option.textContent = option.dataset.seasonName + ' \u00b7 ' + count + (count === 1 ? ' Folge' : ' Folgen');
+        }
+        async function loadSeasonCounts() {
+            const pending = [...seasonOptions.keys()];
+            await Promise.all(Array.from({ length: Math.min(3, pending.length) }, async () => {
+                while (current() && pending.length) {
+                    const id = pending.shift();
+                    try {
+                        const params = new URLSearchParams({ userId: auth.user, seasonId: id, startIndex: '0', limit: '0',
+                            fields: '', enableImages: 'false', enableUserData: 'false', excludeLocationTypes: 'Virtual' });
+                        const data = await readJson('/Shows/' + series.Id + '/Episodes?' + params, auth, signal);
+                        setCount(id, data.TotalRecordCount);
+                    } catch { /* Keep the season selectable when its count is unavailable. */ }
+                }
+            }));
+        }
         async function load(append = false) {
             const ownTicket = ++episodeTicket;
             if (!append) { start = 0; rows.replaceChildren(); }
@@ -463,8 +486,9 @@
             try {
                 const params = new URLSearchParams({ userId: auth.user, startIndex: String(start), limit: '30', fields: 'Overview', enableImageTypes: 'Primary', excludeLocationTypes: 'Virtual' });
                 if (seasonId) params.set('seasonId', seasonId);
-                const data = await readJson('/Shows/' + series.Id + '/Episodes?' + params, auth, detailsAbort.signal);
-                if (details !== dialog || ticket !== detailsTicket || ownTicket !== episodeTicket || session()?.key !== auth.key) return;
+                const data = await readJson('/Shows/' + series.Id + '/Episodes?' + params, auth, signal);
+                if (!current() || ownTicket !== episodeTicket) return;
+                setCount(seasonId, data.TotalRecordCount, true);
                 for (const episode of data.Items || []) {
                     if (!validId(episode.Id)) continue;
                     const row = element('button', 'native-cinema-episode'); row.type = 'button';
@@ -479,11 +503,15 @@
             finally { more.disabled = false; }
         }
         try {
-            const data = await readJson('/Shows/' + series.Id + '/Seasons?userId=' + encodeURIComponent(auth.user), auth, detailsAbort.signal);
-            if (details !== dialog || ticket !== detailsTicket || session()?.key !== auth.key) return;
-            const all = element('option', '', 'Alle Staffeln'); all.value = ''; select.append(all);
-            for (const season of data.Items || []) if (validId(season.Id)) { const option = element('option', '', season.Name); option.value = season.Id; select.append(option); }
-            select.addEventListener('change', () => { seasonId = select.value; load(); }); more.addEventListener('click', () => load(true)); await load();
+            const data = await readJson('/Shows/' + series.Id + '/Seasons?userId=' + encodeURIComponent(auth.user), auth, signal);
+            if (!current()) return;
+            allOption = element('option', '', 'Alle Staffeln'); allOption.value = ''; allOption.dataset.seasonName = 'Alle Staffeln'; select.append(allOption);
+            for (const season of data.Items || []) if (validId(season.Id)) {
+                const option = element('option', '', season.Name); option.value = season.Id; option.dataset.seasonName = season.Name;
+                seasonOptions.set(season.Id, option); select.append(option);
+            }
+            select.addEventListener('change', () => { seasonId = select.value; load(); }); more.addEventListener('click', () => load(true));
+            void loadSeasonCounts(); await load();
         } catch { status.textContent = 'Staffeln konnten nicht geladen werden. Die originale Detailseite bleibt verfügbar.'; }
     }
 

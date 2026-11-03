@@ -24,6 +24,8 @@ const requests = [], checks = [];
 let fixtureMode = 'allowed', seriesInformation = false, server, browser, diagnosticPage;
 let holdInitialMetadata = false;
 const pendingMetadata = [];
+let holdSeasonCounts=false,activeSeasonCounts=0,maxSeasonCounts=0;
+const pendingSeasonCounts=[];
 const note = name => { checks.push({ name, passed: true }); console.log('PASS ' + name); };
 
 (async () => {
@@ -59,10 +61,23 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
             res.end(JSON.stringify(permitted ? { Id: id, Name: 'Native fixture title', Type: seriesInformation ? 'Series' : 'Movie', Overview: 'Full movie information', Genres: ['Drama'], People: [{Name:'Fixture Actor',Type:'Actor'}], ProductionYear: 2026, BackdropImageTags: ['fixture'] } : {})); return;
         }
         if (url.pathname.endsWith('/Shows/' + id + '/Seasons')) {
-            res.writeHead(200, {'Content-Type':'application/json'});res.end(JSON.stringify({Items:[{Id:'dddddddddddddddddddddddddddddddd',Name:'Staffel 1'},{Id:'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',Name:'Staffel 2'}]}));return;
+            res.writeHead(200, {'Content-Type':'application/json'});res.end(JSON.stringify({Items:[
+                {Id:'dddddddddddddddddddddddddddddddd',Name:'Staffel 1',ChildCount:999},
+                {Id:'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',Name:'Staffel 2'},
+                {Id:'00000000000000000000000000000001',Name:'Extras'},
+                {Id:'88888888888888888888888888888888',Name:'Staffel 3'}]}));return;
         }
         if (url.pathname.endsWith('/Shows/' + id + '/Episodes')) {
-            res.writeHead(200, {'Content-Type':'application/json'});res.end(JSON.stringify({Items:[{Id:'ffffffffffffffffffffffffffffffff',Name:url.searchParams.get('seasonId')==='eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'?'Second season episode':'First season episode',Type:'Episode',IndexNumber:1}],TotalRecordCount:1}));return;
+            const season=url.searchParams.get('seasonId')||'';
+            const totals={'':50,'dddddddddddddddddddddddddddddddd':47,'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee':1,
+                '00000000000000000000000000000001':0,'88888888888888888888888888888888':2};
+            if(url.searchParams.get('limit')==='0'){
+                activeSeasonCounts++;maxSeasonCounts=Math.max(maxSeasonCounts,activeSeasonCounts);let ended=false;
+                const done=()=>{if(!ended){ended=true;activeSeasonCounts--;}};res.once('close',done);
+                const reply=()=>{if(!res.destroyed){res.writeHead(season==='88888888888888888888888888888888'?503:200,{'Content-Type':'application/json'});res.end(JSON.stringify({Items:[],TotalRecordCount:totals[season]}));}done();};
+                if(holdSeasonCounts)pendingSeasonCounts.push(reply);else setTimeout(reply,120);return;
+            }
+            res.writeHead(200, {'Content-Type':'application/json'});res.end(JSON.stringify({Items:totals[season]?[{Id:'ffffffffffffffffffffffffffffffff',Name:season==='eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'?'Second season episode':'First season episode',Type:'Episode',IndexNumber:1}]:[],TotalRecordCount:totals[season]}));return;
         }
         if (url.pathname.includes('/Images/')) { res.writeHead(200, { 'Content-Type': 'image/png' }); res.end(pixel); return; }
         if (url.pathname.endsWith('/web/index.html')) {
@@ -145,15 +160,38 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
         assert.equal(new URL(page.url()).hash,'');
         await page.getByRole('button',{name:'Schließen',exact:true}).click();
         note('Normal card clicks open information while the original detail link remains available at ' + (base || '/'));
-        seriesInformation = true;
+        seriesInformation = true;maxSeasonCounts=0;
         await page.locator('#original-details').dispatchEvent('click');
-        await page.getByLabel('Staffel',{exact:true}).selectOption('eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
+        const seasonSelect=page.getByLabel('Staffel',{exact:true});await seasonSelect.waitFor({state:'visible'});
+        await page.waitForFunction(()=>document.querySelector('.native-cinema-season option[value="dddddddddddddddddddddddddddddddd"]')?.textContent.includes('47 Folgen'));
+        const countSuffix=(name,count)=>name+' '+String.fromCharCode(183)+' '+count+(count===1?' Folge':' Folgen');
+        assert.equal(await seasonSelect.locator('option[value=""]').textContent(),countSuffix('Alle Staffeln',50));
+        assert.equal(await seasonSelect.locator('option[value="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"]').textContent(),countSuffix('Staffel 2',1));
+        assert.equal(await seasonSelect.locator('option[value="00000000000000000000000000000001"]').textContent(),countSuffix('Extras',0));
+        await seasonSelect.selectOption('00000000000000000000000000000001');
+        await page.waitForFunction(()=>document.querySelectorAll('.native-cinema-episode').length===0);
+        assert.equal(await seasonSelect.locator('option[value="88888888888888888888888888888888"]').textContent(),'Staffel 3');
+        await seasonSelect.selectOption('88888888888888888888888888888888');
+        await page.waitForFunction(()=>document.querySelector('.native-cinema-season option[value="88888888888888888888888888888888"]')?.textContent.includes('2 Folgen'));
+        assert(maxSeasonCounts<=3);
+        note('Season labels use full user-visible totals, singular and zero forms, and recover a failed count from the selected episode page at ' + (base || '/'));
+        await seasonSelect.selectOption('eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
         const episode=page.getByRole('button',{name:/Second season episode/});await episode.waitFor();
         await page.evaluate(()=>document.querySelector('.itemsContainer').addEventListener('command',event=>{if(event.detail?.command==='play'){fixture.plays++;event.preventDefault();}}));
         await episode.click();await page.locator('.native-cinema-info').waitFor({state:'detached'});
         assert.equal(await page.evaluate(()=>fixture.plays),2);
-        seriesInformation = false;
         note('Series information loads seasons and episodes and delegates episode play to native commands at ' + (base || '/'));
+        const heldStart=requests.length;holdSeasonCounts=true;
+        await page.locator('#original-details').dispatchEvent('click');await seasonSelect.waitFor({state:'visible'});
+        for(let i=0;i<50&&pendingSeasonCounts.length<3;i++)await page.waitForTimeout(20);
+        assert.equal(pendingSeasonCounts.length,3);
+        await page.keyboard.press('Escape');await page.locator('.native-cinema-info').waitFor({state:'detached'});
+        seriesInformation=false;await page.locator('#original-details').dispatchEvent('click');await page.locator('.native-cinema-info-overview').waitFor({state:'visible'});
+        holdSeasonCounts=false;for(const reply of pendingSeasonCounts.splice(0))reply();await page.waitForTimeout(150);
+        assert.equal(await page.locator('.native-cinema-season').count(),0);
+        assert.equal(requests.slice(heldStart).filter(request=>request.path.endsWith('/Shows/'+id+'/Episodes')&&new URLSearchParams(request.query).get('limit')==='0').length,3);
+        await page.keyboard.press('Escape');await page.locator('.native-cinema-info').waitFor({state:'detached'});
+        note('Closing the series dialog aborts its bounded count workers and prevents late results entering a different title at ' + (base || '/'));
         await page.setViewportSize({ width: 390, height: 844 });
         const rect = await page.locator('.native-cinema-hero').boundingBox();
         assert(rect.x >= 0 && rect.x + rect.width <= 390);
@@ -489,5 +527,6 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
     if (diagnosticPage) console.error(JSON.stringify(await diagnosticPage.locator('dialog button').evaluateAll(nodes=>nodes.map(node=>({label:node.getAttribute('aria-label'),cls:node.className,rect:{x:node.getBoundingClientRect().x,y:node.getBoundingClientRect().y,width:node.getBoundingClientRect().width,height:node.getBoundingClientRect().height},visibility:getComputedStyle(node).visibility}))).catch(()=>[])));
 }).finally(async () => {
     holdInitialMetadata = false; for (const send of pendingMetadata.splice(0)) send();
+    holdSeasonCounts=false; for(const reply of pendingSeasonCounts.splice(0))reply();
     if (browser) await browser.close(); if (server) await new Promise(resolve => server.close(resolve));
 });

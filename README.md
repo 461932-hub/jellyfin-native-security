@@ -14,7 +14,7 @@ liegen unter `server/`; `SOURCE-PATCH.diff` zeigt die Aenderungen gegen
 ## Installation ueber CasaOS
 
 Nach einem erfolgreichen Lauf unter **Actions** steht das Image unter
-`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview15` bereit.
+`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview16` bereit.
 Der Kontoinhaber muss das GitHub-Containerpaket einmal unter **Packages ->
 jellyfin-native-security -> Package settings -> Change visibility -> Public**
 oeffentlich lesbar machen. Ein oeffentliches Repository allein aendert die
@@ -95,6 +95,15 @@ Klick oeffnet das Cinema-Infofenster mit Beschreibung, Besetzung, nativen
 Abspiel-/Favoritenaktionen und bei Serien einer Staffel-/Folgenauswahl.
 Eine Verknuepfung zur originalen Detailseite bleibt im Fenster vorhanden.
 
+Die Staffelauswahl zeigt hinter jedem Staffelnamen die vom Server gemeldete
+Gesamtzahl der Folgen, beispielsweise "Staffel 1 · 25 Folgen". Auch "Alle
+Staffeln" erhaelt die Gesamtzahl aus der vorhandenen Folgenabfrage. Die Zahlen
+stammen aus derselben Benutzeransicht wie die Folgenliste, unabhaengig von deren
+30er-Seitengroesse. Hoechstens drei Zaehlanfragen laufen parallel und liefern
+keine Folgenobjekte oder Bilder. Beim Schliessen werden sie abgebrochen.
+Fehlt eine Zahl voruebergehend, bleibt die Staffel waehlbar; die ausgewaehlte
+Folgenantwort kann die Zahl anschliessend ergaenzen.
+
 Oeffnen und Schliessen verwenden jetzt die Bewegungsablaeufe aus dem Cinema-
 Projekt. Kleine Vorschauen schrumpfen zur Kachel zurueck, grosse Infofenster
 zur sichtbaren Ausgangskachel. Auch ein Schliessen waehrend des Oeffnens geht
@@ -167,7 +176,7 @@ vorhandene TV-Direct-Play-Pfad wird nicht umgestellt.
 ## Build und Nachweise
 
 ```sh
-docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview15 .
+docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview16 .
 ```
 
 Der Build prueft die Quellpruefsummen, kompiliert die Linux-x64-Laufzeit und
