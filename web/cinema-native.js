@@ -108,8 +108,19 @@
         return 'Primary';
     }
 
+    function cardImageUrl(item, width) {
+        // Seasons often only own a portrait poster. Prefer the parent's existing
+        // horizontal artwork before falling back to that poster in a 16:9 box.
+        if (item.Type === 'Season' && !item.ImageTags?.Thumb && !item.BackdropImageTags?.length) {
+            if (validId(item.ParentThumbItemId)) return imageUrl({ Id: item.ParentThumbItemId }, 'Thumb', width);
+            if (validId(item.ParentBackdropItemId)) return imageUrl({ Id: item.ParentBackdropItemId }, 'Backdrop', width);
+        }
+        return imageUrl(item, landscape(item), width);
+    }
+
     function enhanceCard(card, item, ownGeneration) {
-        if (!['Movie', 'Series', 'Episode'].includes(item.Type)) return;
+        if (!['Movie', 'Series', 'Episode', 'Season'].includes(item.Type)) return;
+        if (item.Type === 'Season' && !card.closest('#homeTab')) return;
         // The native thumbnail grid already requests the correct artwork and
         // reserves its dimensions. Keep React-owned library images unchanged.
         if (card.closest('#moviesPage,#tvshowsPage')) return;
@@ -117,14 +128,14 @@
         const container = card.querySelector('.cardImageContainer:not(.cardOverlayContainer .cardImageContainer)');
         if (!container) return;
         enhanced.set(card, ownGeneration);
-        if (['Movie', 'Series'].includes(item.Type)) card.setAttribute('data-native-cinema-wide', '');
+        card.setAttribute('data-native-cinema-wide', '');
         const image = new Image(); image.className = 'native-cinema-art';
         image.alt = ''; image.setAttribute('aria-hidden', 'true'); image.decoding = 'async';
         image.onload = () => {
             if (ownGeneration === generation && card.isConnected) card.setAttribute('data-native-cinema-ready', '');
         };
         image.onerror = () => image.remove();
-        container.append(image); image.src = imageUrl(item, landscape(item), 900);
+        container.append(image); image.src = cardImageUrl(item, 900);
     }
 
     function element(tag, className, text) {
@@ -724,10 +735,11 @@
             if (Date.now() < retryAfter) return;
             const ownGeneration = generation;
             const cards = [...page.querySelectorAll('.card[data-id]')].filter(card =>
-                validId(card.dataset.id) && ['Movie', 'Series', 'Episode'].includes(card.dataset.type));
+                validId(card.dataset.id) && (['Movie', 'Series', 'Episode'].includes(card.dataset.type)
+                    || (card.dataset.type === 'Season' && card.closest('#homeTab'))));
             const eligible = ['indexPage', 'moviesPage', 'tvshowsPage'].includes(page.id)
                 && (!page.querySelector('#favoritesTab.is-active'));
-            const first = eligible ? cards[0] : null;
+            const first = eligible ? cards.find(card => card.dataset.type !== 'Season') : null;
             const requested = [...new Set([first?.dataset.id, ...cards.filter(visible).map(card => card.dataset.id)].filter(Boolean))].slice(0, 24);
             const items = await metadata(requested, auth);
             if (generation !== ownGeneration || session()?.key !== auth.key || activePage() !== page) return;

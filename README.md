@@ -14,7 +14,7 @@ liegen unter `server/`; `SOURCE-PATCH.diff` zeigt die Aenderungen gegen
 ## Installation ueber CasaOS
 
 Nach einem erfolgreichen Lauf unter **Actions** steht das Image unter
-`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview12` bereit.
+`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview13` bereit.
 Der Kontoinhaber muss das GitHub-Containerpaket einmal unter **Packages ->
 jellyfin-native-security -> Package settings -> Change visibility -> Public**
 oeffentlich lesbar machen. Ein oeffentliches Repository allein aendert die
@@ -114,7 +114,12 @@ nicht ungewollt. Horizontale Gesten bleiben den nativen Reihen vorbehalten.
 Ein Groessenwechsel erhaelt den aktuellen Abstand im Katalog.
 
 Die Startseite behaelt ihre nativen horizontalen Reihen und Schieberegler;
-Filme und Serien behalten das feste Bibliotheksraster. Der vorhandene native
+Filme und Serien behalten das feste Bibliotheksraster. Gemischte Videoreihen
+auf Start zeigen Filme, Serien, Folgen und Staffeln einheitlich in 16:9. Der
+Platz wird schon vor dem Laden der Metadaten reserviert. Staffeln bevorzugen
+eigene Miniaturen oder vorhandene horizontale Bilder der uebergeordneten Serie;
+Musikalben und andere Kartentypen behalten ihr natives Format. Originale
+Staffel-Verknuepfungen bleiben erhalten. Der vorhandene native
 Bildtyp wird in den nativen Bibliotheksansichten standardmaessig auf Miniatur
 statt Primaer gesetzt, einschliesslich Sammlungen, Favoriten und weiterer Tabs.
 Bestehende Primaer-Einstellungen werden einmal pro Ansicht und Browser uebernommen,
@@ -149,7 +154,7 @@ vorhandene TV-Direct-Play-Pfad wird nicht umgestellt.
 ## Build und Nachweise
 
 ```sh
-docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview12 .
+docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview13 .
 ```
 
 Der Build prueft die Quellpruefsummen, kompiliert die Linux-x64-Laufzeit und

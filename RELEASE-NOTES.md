@@ -1,26 +1,28 @@
-Preview 12: Nachbarkachel schliesst die alte Vorschau sofort wie in Cinema.
+Preview 13: Einheitliches Querformat in gemischten Startseitenreihen.
 
-Beim Wechsel zu einem anderen Titel beginnt die alte schwebende Vorschau nun
-sofort ihre Rueckanimation. Bisher blieb sie bis zum Oeffnen der neuen Vorschau
-stehen. Das gilt sowohl seitlich als auch beim Wechsel zur Reihe darunter.
-Die originale Schliessanimation dauert weiterhin 260 ms; die neue Kachel hat
-ihre eigene Oeffnungsverzoegerung von 550 ms. Ein Verlassen ohne Nachbarkachel
-behaelt die kurze 140-ms-Toleranz. Vorschauknopfe bleiben erreichbar.
+Jellyfin mischt in zuletzt hinzugefuegten Serien auch einzelne Folgen und
+Staffeln. Die bisherige fruehe Querformat-Regel erfasste nur Filme und Serien.
+Folgen und Staffeln behielten deshalb teilweise ihre native Hochkantflaeche.
 
-Ausstehende Oeffnungen werden beim Weiterbewegen verworfen. Uebergaenge zwischen
-Kindern derselben Kachel starten die Wartezeit nicht erneut. Alte Schliess-Timer
-koennen keine neu geoeffnete Vorschau mehr schliessen.
+Die Startseite reserviert jetzt fuer alle vier Videotypen eine 16:9-Bildflaeche,
+noch bevor Metadaten und Bilder eintreffen. Folgen werden ebenso markiert wie
+Serien; Staffeln erhalten ihre eigene Miniatur oder ein vorhandenes Querbild
+der uebergeordneten Serie. Eltern-IDs werden validiert, Bildanfragen bleiben
+lokal und verwenden die bestehende geschuetzte Bildintegration. Ein fehlendes
+Querbild faellt auf das vorhandene Poster im gleichen 16:9-Rahmen zurueck.
 
-Miniatur-Vorgaben aus Preview 11, originale Menues, Player und Medienrechte
-bleiben erhalten. Keine Aenderung an nativen TV-Apps.
+Staffeln behalten ihre originalen Detailverknuepfungen. Musikalben und andere
+Kartentypen behalten ihr natives Format. Das manuell waehlbare Bibliotheksraster,
+Vorschauanimationen aus Preview 12, Player und Medienrechte bleiben erhalten.
 
 Vorhandene CasaOS-Test-App aktualisieren:
-ghcr.io/461932-hub/jellyfin-native-security:12.4-preview12
+ghcr.io/461932-hub/jellyfin-native-security:12.4-preview13
 Ports und Ordner beibehalten. Anschliessend Strg+F5.
 
-Pruefung: 64 Browserfaelle fuer / und /media, einschliesslich echter
-Zeigerbewegungen zu seitlichen und darunterliegenden Kacheln, abgebrochener
-Oeffnung und erreichbarer Vorschauknopfe. Zusaetzliche Pruefung auf der echten
-nativen LAN-Oberflaeche mit lokalen Vorschau-Dateien; keine Wiedergabe gestartet.
-Bestehende API-, TV-Identitaets- und Docker-Pruefungen im Veroeffentlichungslauf.
+Pruefung: 72 Browserfaelle fuer / und /media, einschliesslich gemischter Reihen
+vor/nach dem Bildladen, eigener und geerbter Bilder, ungueltiger Eltern-IDs,
+nativer Musikformate und unveraenderter Staffelaktionen. Echte native
+Oberflaeche: 36 Videokacheln einschliesslich Folgen und Staffeln im 16:9-Format,
+geschuetztes Staffelbild und originale Detailnavigation geprueft. Keine
+Wiedergabe gestartet. Bestehende API-, TV-Identitaets- und Docker-Pruefungen.
 Eigener Testkandidat, keine offizielle Jellyfin-Veroeffentlichung.

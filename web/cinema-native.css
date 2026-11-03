@@ -128,7 +128,9 @@ html:not(.native-cinema-disabled) .cardScalable { border-radius: 12px; }
 html:not(.native-cinema-disabled) :is(.cardImageContainer,.cardContent,.cardOverlayContainer,.blurhash-canvas) { border-radius: 12px; }
 html:not(.native-cinema-disabled) .cardScalable { background: #262626; }
 html:not(.native-cinema-disabled) .card[data-native-cinema-wide] .cardPadder { padding-bottom: 56.25% !important; }
-html.native-cinema-enabled .homePage .card:is([data-type="Movie"],[data-type="Series"]) .cardPadder { padding-bottom: 56.25% !important; }
+/* Latest-series rows can mix series, episodes and seasons. Reserve the same
+   landscape box before metadata arrives; keep music and other card types native. */
+html.native-cinema-enabled #homeTab .card:is([data-type="Movie"],[data-type="Series"],[data-type="Episode"],[data-type="Season"]) .cardPadder { padding-bottom: 56.25% !important; }
 html:not(.native-cinema-disabled) .native-cinema-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; opacity: 0; pointer-events: none; }
 html:not(.native-cinema-disabled) [data-native-cinema-ready] .native-cinema-art { opacity: 1; }
 html:not(.native-cinema-disabled) .cardText { color: #eee; line-height: 1.4; }

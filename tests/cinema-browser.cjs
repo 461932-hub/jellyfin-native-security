@@ -8,6 +8,15 @@ const { chromium } = require(process.env.NATIVE_CINEMA_PLAYWRIGHT || 'playwright
 const assets = path.join(__dirname, '../web');
 const id = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', user = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 const neighborId = '99999999999999999999999999999999';
+const mixedRowItems = [
+    {Id:'11111111111111111111111111111111',Type:'Series',ImageTags:{Thumb:'fixture'}},
+    {Id:'22222222222222222222222222222222',Type:'Episode',ImageTags:{Primary:'fixture'},ParentThumbItemId:'11111111111111111111111111111111'},
+    {Id:'33333333333333333333333333333333',Type:'Season',ImageTags:{Thumb:'fixture',Primary:'fixture'}},
+    {Id:'44444444444444444444444444444444',Type:'Season',ImageTags:{Primary:'fixture'},ParentThumbItemId:'11111111111111111111111111111111'},
+    {Id:'55555555555555555555555555555555',Type:'Season',ImageTags:{Primary:'fixture'},ParentBackdropItemId:'11111111111111111111111111111111'},
+    {Id:'66666666666666666666666666666666',Type:'Season',ImageTags:{Primary:'fixture'},ParentThumbItemId:'https://outside.invalid/not-an-item'},
+    {Id:'77777777777777777777777777777777',Type:'MusicAlbum',ImageTags:{Primary:'fixture'}}
+].map(item=>({Name:'Mixed '+item.Type,...item}));
 const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jXioAAAAASUVORK5CYII=', 'base64');
 const requests = [], checks = [];
 let fixtureMode = 'allowed', seriesInformation = false, server, browser, diagnosticPage;
@@ -32,8 +41,9 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
         if (url.pathname.includes('/Users/') && url.pathname.endsWith('/Items')) {
             const permitted = fixtureMode === 'allowed' && req.headers.authorization === 'MediaBrowser Token="fixture-token"';
             res.writeHead(permitted ? 200 : 403, { 'Content-Type': 'application/json' });
-            const selected = (url.searchParams.get('Ids') || id).split(',').filter(value => [id, neighborId].includes(value));
-            const send = () => res.end(JSON.stringify({ Items: permitted ? selected.map(value => ({ Id: value,
+            const knownIds=[id,neighborId,...mixedRowItems.map(item=>item.Id)];
+            const selected = (url.searchParams.get('Ids') || id).split(',').filter(value => knownIds.includes(value));
+            const send = () => res.end(JSON.stringify({ Items: permitted ? selected.map(value => mixedRowItems.find(item=>item.Id===value) || ({ Id: value,
                 Name: value === id ? 'Native fixture title' : 'Neighbor fixture title', Type: 'Movie',
                 Overview: '<img src="https://outside.invalid/leak" onerror="window.injected=1">Safe description',
                 ProductionYear: 2026, Genres: ['Drama'], ImageTags: { Thumb: 'fixture' }, BackdropImageTags: ['fixture'] })) : [] }));
@@ -334,6 +344,51 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
         await page.waitForTimeout(180);assert.equal(await nextHover.count(),1);
         await page.mouse.move(20,20);await page.locator('.native-cinema-hover').waitFor({state:'detached'});
         note('Moving onto preview controls keeps them usable, then leaving closes with the original animation at ' + (base || '/'));
+        await page.goto(origin + base + '/web/index.html?mixed-row-format=1#/home');
+        await page.locator('.native-cinema-hero').waitFor({state:'visible'});
+        await page.addStyleTag({content:'.native-cinema-hero{display:none!important}'});
+        holdInitialMetadata=true;
+        await page.evaluate(items=>{
+            const row=document.createElement('div');row.id='mixed-fixture-row';
+            Object.assign(row.style,{display:'flex',flexWrap:'wrap',gap:'12px'});
+            for(const item of items){
+                const card=document.createElement('div');card.className='card overflowPortraitCard';card.dataset.id=item.Id;card.dataset.type=item.Type;
+                Object.assign(card.style,{width:'190px',height:'auto'});
+                const scalable=document.createElement('div');scalable.className='cardScalable';scalable.style.position='relative';
+                const padder=document.createElement('div');padder.className='cardPadder';padder.style.paddingBottom=item.Type==='MusicAlbum'?'100%':'150%';
+                const image=document.createElement('div');image.className='cardImageContainer';
+                const badge=document.createElement('span');badge.className='countIndicator';badge.textContent='12';image.append(badge);
+                const link=document.createElement('a');link.href='#/details?id='+item.Id;link.textContent=item.Name;
+                link.addEventListener('click',event=>{event.preventDefault();window.nativeMixedSeasonClicks=(window.nativeMixedSeasonClicks||0)+1;});
+                scalable.append(padder,image);card.append(scalable,link);row.append(card);
+            }
+            document.querySelector('#homeTab .itemsContainer').append(row);
+        },mixedRowItems);
+        const mixedRatios=()=>page.locator('#mixed-fixture-row .card').evaluateAll(nodes=>nodes.map(card=>{
+            const r=card.querySelector('.cardPadder').getBoundingClientRect();return{type:card.dataset.type,ratio:r.width/r.height};
+        }));
+        const beforeImages=await mixedRatios();
+        for(const card of beforeImages)assert(Math.abs(card.ratio-(card.type==='MusicAlbum'?1:16/9))<.002,card.type);
+        note('Mixed home rows reserve 16:9 for series, episodes and seasons before metadata while music stays square at ' + (base || '/'));
+        holdInitialMetadata=false;for(const send of pendingMetadata.splice(0))send();
+        await page.waitForFunction(()=>[...document.querySelectorAll('#mixed-fixture-row .card:not([data-type="MusicAlbum"])')].every(card=>card.hasAttribute('data-native-cinema-ready')));
+        const art=await page.locator('#mixed-fixture-row .native-cinema-art').evaluateAll(nodes=>Object.fromEntries(nodes.map(img=>[img.closest('.card').dataset.id,new URL(img.src).pathname])));
+        assert.equal(art[mixedRowItems[1].Id],base+'/Items/'+mixedRowItems[1].Id+'/Images/Primary');
+        assert.equal(art[mixedRowItems[2].Id],base+'/Items/'+mixedRowItems[2].Id+'/Images/Thumb');
+        assert.equal(art[mixedRowItems[3].Id],base+'/Items/'+mixedRowItems[0].Id+'/Images/Thumb');
+        assert.equal(art[mixedRowItems[4].Id],base+'/Items/'+mixedRowItems[0].Id+'/Images/Backdrop/0');
+        assert.equal(art[mixedRowItems[5].Id],base+'/Items/'+mixedRowItems[5].Id+'/Images/Primary');
+        assert.deepEqual(external,[]);
+        note('Season artwork prefers its own thumbnail then valid parent artwork, retaining episode stills and safe poster fallback at ' + (base || '/'));
+        const afterImages=await mixedRatios();assert.deepEqual(afterImages,beforeImages);
+        assert.equal(await page.locator('#mixed-fixture-row [data-type="MusicAlbum"] .native-cinema-art').count(),0);
+        note('Mixed-row image loading keeps every reserved card dimension stable and leaves music artwork native at ' + (base || '/'));
+        const seasonLink=page.locator('#mixed-fixture-row [data-type="Season"] a').first();
+        assert.equal(await seasonLink.getAttribute('href'),'#/details?id='+mixedRowItems[2].Id);
+        await seasonLink.dispatchEvent('click');assert.equal(await page.evaluate(()=>window.nativeMixedSeasonClicks),1);
+        assert.equal(await page.locator('#mixed-fixture-row .countIndicator').count(),mixedRowItems.length);
+        assert.equal(await page.locator('.native-cinema-info').count(),0);
+        note('Season links and native badges survive the format correction without replacing their original action at ' + (base || '/'));
         await page.goto(origin + base + '/web/index.html?cinema=off');
         assert.equal(await page.locator('.native-cinema-hero').count(), 0);
         assert.equal(await page.locator('html').getAttribute('class'), 'native-cinema-disabled');
