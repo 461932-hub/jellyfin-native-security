@@ -69,13 +69,28 @@ try:
     user_id = login['User']['Id']
     config = api('/System/Configuration', token=token, expected=200)
     assert not config['EnableLegacyAuthorization']
+
+    def wait_for_library_scan_idle():
+        for _ in range(120):
+            task = next(task for task in api('/ScheduledTasks', token=token, expected=200)
+                        if task['Key'] == 'RefreshLibrary')
+            if task['State'] == 'Idle':
+                return task['Id']
+            time.sleep(.5)
+        raise AssertionError('Initial fixture library scan did not finish')
+
+    # Startup can still be scanning its initially empty library. Finish that
+    # work before adding the fixture, then start exactly one scan. Calling
+    # Library/Refresh while AddVirtualFolder's scan is starting can cancel it.
+    wait_for_library_scan_idle()
     request('/Library/VirtualFolders?' + urlencode({
-        'name': 'NativeIdentity', 'collectionType': 'movies', 'refreshLibrary': 'true'}), 'POST',
+        'name': 'NativeIdentity', 'collectionType': 'movies', 'refreshLibrary': 'false'}), 'POST',
         {'LibraryOptions': {'PathInfos': [{'Path': MEDIA_PATH}],
                             'EnableInternetProviders': False, 'EnableRealtimeMonitor': False,
                             'TypeOptions': [{'Type': 'Movie', 'MetadataFetchers': [], 'ImageFetchers': []}]}},
         token=token, expected=204)
-    request('/Library/Refresh', 'POST', token=token, expected=204)
+    scan_id = wait_for_library_scan_idle()
+    request('/ScheduledTasks/Running/' + scan_id, 'POST', token=token, expected=204)
     item = None
     for attempt in range(80):
         items = api('/Items?' + urlencode({
