@@ -1,0 +1,162 @@
+/* Native Jellyfin pages in the Cinema presentation. GPL-2.0-or-later.
+ * Original buttons, menus, navigation, permissions and player remain active.
+ * ?cinema=off restores the unstyled original client on this browser.
+ */
+html:not(.native-cinema-disabled) {
+    --cinema-pad: clamp(16px, 3.125vw, 60px);
+    --jf-palette-background-default: #141414;
+    --jf-palette-background-paper: #232323;
+    --jf-palette-background-paperChannel: 35 35 35;
+    --jf-palette-primary-main: #e50914;
+    --jf-palette-primary-mainChannel: 229 9 20;
+    --jf-palette-primary-dark: #b20710;
+    --jf-palette-primary-contrastText: #ffffff;
+    --jf-palette-secondary-main: #ffffff;
+    --jf-palette-secondary-mainChannel: 255 255 255;
+    --jf-palette-secondary-contrastText: #141414;
+    --jf-palette-text-primary: #f5f5f1;
+    --jf-palette-text-secondary: #cccccc;
+    --jf-palette-AppBar-defaultBg: transparent;
+    --jf-palette-AppBar-transparentBg: transparent;
+    --jf-palette-AppBar-gradient: none;
+    --jf-card-borderRadius: 12px;
+    --jf-palette-background-defaultImage: radial-gradient(ellipse 90% 650px at 50% 0, #242424, transparent);
+    color-scheme: dark;
+    background: radial-gradient(ellipse 90% 650px at 50% 0, #242424, transparent), #141414;
+}
+html:not(.native-cinema-disabled) body { font-family: Arial, Helvetica, sans-serif; }
+html:not(.native-cinema-disabled) .backgroundContainer {
+    background: radial-gradient(ellipse 90% 650px at 50% 0, #242424, transparent), #141414;
+}
+/* There is no separate black strip at the top of the page. */
+html:not(.native-cinema-disabled) :is(header.MuiAppBar-root, .skinHeader) {
+    background: transparent !important;
+    background-image: none !important;
+    color: #f5f5f1 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+}
+html.native-cinema-scrolled:not(.native-cinema-disabled) header.MuiAppBar-root { background: #141414 !important; }
+html:not(.native-cinema-disabled) header.MuiAppBar-root > .MuiToolbar-root:first-child {
+    min-height: 64px;
+    padding: 10px var(--cinema-pad);
+    gap: 20px;
+    box-sizing: border-box;
+}
+html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButton-root {
+    color: #cccccc !important;
+    border-radius: 30px !important;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 16px;
+    padding: 11px 15px;
+    white-space: nowrap;
+}
+/* The native home link remains the home link, including its accessible name. */
+html:not(.native-cinema-disabled) header.MuiAppBar-root a.MuiButton-sizeLarge[href="#/"] {
+    min-width: 76px;
+    padding: 0;
+    margin-right: 12px;
+    font-size: 0;
+    background: none !important;
+}
+html:not(.native-cinema-disabled) header.MuiAppBar-root a.MuiButton-sizeLarge[href="#/"] .MuiButton-startIcon { display: none; }
+html:not(.native-cinema-disabled) header.MuiAppBar-root a.MuiButton-sizeLarge[href="#/"]::before {
+    content: 'JELLYFIN';
+    display: block;
+    color: #ff0011;
+    font: 24px/1 Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
+    letter-spacing: -0.6px;
+}
+html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButton-root:not(.MuiButton-sizeLarge):hover { background: #ffffff25 !important; color: white !important; }
+html:not(.native-cinema-disabled) header.MuiAppBar-root :is(.MuiButton-root.MuiButton-colorPrimary, .MuiButton-root.MuiButton-colorPrimary:hover, .MuiButton-root[aria-current="page"]) {
+    color: white !important; background: #303030 !important; font-weight: 700;
+}
+html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiIconButton-root { color: white !important; }
+html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiIconButton-root:hover { background: #ffffff18 !important; }
+html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiAvatar-colorDefault { background: #e50914; color: white; }
+html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiAvatar-root { border-radius: 5px; }
+html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiBadge-colorPrimary { background: #e50914 !important; }
+html:not(.native-cinema-disabled) :is(a,button,input,select,textarea):focus-visible { outline-color: #fff; outline-offset: 3px; }
+
+/* Big still-image preview; no preview player, sound toggle or autoplay. */
+html:not(.native-cinema-disabled) .native-cinema-hero {
+    position: relative; isolation: isolate; overflow: hidden;
+    margin: 10px var(--cinema-pad) 34px;
+    height: min(48vw, 690px); min-height: 360px;
+    border-radius: 24px; background: #292929; box-shadow: 0 15px 45px #0005;
+}
+html:not(.native-cinema-disabled) :is(.native-cinema-hero-image,.native-cinema-hero-shade) { position: absolute; inset: 0; width: 100%; height: 100%; }
+html:not(.native-cinema-disabled) .native-cinema-hero-image { object-fit: cover; object-position: center 30%; }
+html:not(.native-cinema-disabled) .native-cinema-hero-shade { background: linear-gradient(0deg,#000e,transparent 85%),linear-gradient(90deg,#0008,transparent 78%); pointer-events: none; }
+html:not(.native-cinema-disabled) .native-cinema-hero-copy { position: absolute; left: clamp(24px,3vw,50px); bottom: clamp(25px,3vw,45px); width: 58%; max-width: 680px; z-index: 1; }
+html:not(.native-cinema-disabled) .native-cinema-hero-title { margin: 0 0 18px; font-size: clamp(30px,4vw,64px); line-height: 1.05; color: white; text-shadow: 0 3px 18px #0009; }
+html:not(.native-cinema-disabled) .native-cinema-hero-title { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+html:not(.native-cinema-disabled) .native-cinema-hero-logo { width: min(90%,480px); height: clamp(70px,12vw,180px); object-fit: contain; object-position: left bottom; margin-bottom: 22px; }
+html:not(.native-cinema-disabled) .native-cinema-hero [hidden] { display: none !important; }
+html:not(.native-cinema-disabled) .native-cinema-hero-meta { color: #f4f4f4; font-size: clamp(13px,1.25vw,18px); font-weight: 600; margin-bottom: 16px; }
+html:not(.native-cinema-disabled) .native-cinema-hero-overview { color: white; font-size: clamp(14px,1.5vw,22px); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin: 0 0 25px; text-shadow: 0 2px 5px #0008; }
+html:not(.native-cinema-disabled) .native-cinema-hero-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+html:not(.native-cinema-disabled) :is(.native-cinema-primary,.native-cinema-secondary) { padding: 12px 22px; border: 0; border-radius: 30px; font: 700 15px Arial,Helvetica,sans-serif; text-decoration: none; min-height: 43px; box-sizing: border-box; cursor: pointer; }
+html:not(.native-cinema-disabled) .native-cinema-primary { background: white; color: #151515; }
+html:not(.native-cinema-disabled) .native-cinema-secondary { background: #ffffff30; color: white; }
+html:not(.native-cinema-disabled) :is(.native-cinema-primary,.native-cinema-secondary):hover { filter: brightness(.85); }
+
+/* Native media cards and their original play/favourite/context controls. */
+html:not(.native-cinema-disabled) .cardScalable { border-radius: 12px; }
+html:not(.native-cinema-disabled) :is(.cardImageContainer,.cardContent,.cardOverlayContainer,.blurhash-canvas) { border-radius: 12px; }
+html:not(.native-cinema-disabled) .cardScalable { background: #262626; }
+html:not(.native-cinema-disabled) .card[data-native-cinema-wide] .cardPadder { padding-bottom: 56.25% !important; }
+html:not(.native-cinema-disabled) .native-cinema-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; opacity: 0; pointer-events: none; }
+html:not(.native-cinema-disabled) [data-native-cinema-ready] .native-cinema-art { opacity: 1; }
+html:not(.native-cinema-disabled) .cardText { color: #eee; line-height: 1.4; }
+html:not(.native-cinema-disabled) .cardText-secondary { color: #aaa; }
+html:not(.native-cinema-disabled) .cardOverlayContainer { background: linear-gradient(transparent,#000b); }
+html:not(.native-cinema-disabled) .cardOverlayFab-primary { background: white !important; color: #141414 !important; }
+html:not(.native-cinema-disabled) :is(.itemProgressBarForeground,.sliderBubble,.mdl-slider-background-lower) { background: #e50914 !important; }
+html:not(.native-cinema-disabled) :is(.countIndicator,.playedIndicator,.fullSyncIndicator) { background: #e50914 !important; color: white !important; }
+html:not(.native-cinema-disabled) .sectionTitle { color: #f5f5f1; font-size: 24px; font-weight: 700; letter-spacing: -.4px; }
+html:not(.native-cinema-disabled) .verticalSection { margin-bottom: 30px; }
+html:not(.native-cinema-disabled) .cardText bdi { display: block; overflow: hidden; text-overflow: ellipsis; }
+html:not(.native-cinema-disabled):not(.native-cinema-catalog-visible) .mainAnimatedPage:has(> .native-cinema-hero) .alphaPicker-fixed-right { visibility: hidden; }
+
+/* Native detail pages retain all selectors and action buttons. */
+html:not(.native-cinema-disabled) .detailPageWrapperContainer { background: #181818 !important; }
+html:not(.native-cinema-disabled) .detailRibbon { background: #181818d9; }
+html:not(.native-cinema-disabled) .detailPagePrimaryContent { color: #eee; }
+html:not(.native-cinema-disabled) .detailPagePrimaryContent .nameContainer { color: white; }
+html:not(.native-cinema-disabled) .itemDetailPage .detailImageContainer .cardScalable { box-shadow: 0 15px 45px #0005; }
+
+/* Compact Cinema surfaces for original menus, forms, drawers and dialogs. */
+html:not(.native-cinema-disabled) :is(.MuiMenu-paper,.MuiPopover-paper,.dialog,.mainDrawer,.MuiDrawer-paper) { background-color: #232323 !important; color: #f5f5f1; background-image: none; }
+html:not(.native-cinema-disabled) :is(.MuiMenu-paper,.MuiPopover-paper,.dialog) { border: 1px solid #ffffff24; border-radius: 12px; box-shadow: 0 18px 55px #0009; }
+html:not(.native-cinema-disabled) :is(.MuiListItemIcon-root,.fieldDescription,.inputLabel,.textareaLabel,.selectLabel) { color: #ccc; }
+html:not(.native-cinema-disabled) :is(.MuiMenuItem-root,.listItem):hover { background-color: #ffffff10; }
+html:not(.native-cinema-disabled) :is(.MuiDivider-root,.listItem-border) { border-color: #ffffff18; }
+html:not(.native-cinema-disabled) :is(.emby-input,.emby-textarea,.emby-select-withcolor) { background: #2b2b2b; color: white; border: 1px solid #666; border-radius: 5px; }
+html:not(.native-cinema-disabled) :is(.emby-input,.emby-textarea,.emby-select-withcolor):focus { border-color: white !important; }
+html:not(.native-cinema-disabled) :is(.button-submit,.MuiButton-containedPrimary) { background: #f5f5f1 !important; color: #141414 !important; border-radius: 30px; }
+html:not(.native-cinema-disabled) :is(.raised,.MuiButton-containedInherit) { background: #ffffff20; color: white; border-radius: 30px; }
+html:not(.native-cinema-disabled) .userPreferencesPage .readOnlyContent { background: #181818; padding: 24px; border-radius: 20px; box-sizing: border-box; }
+
+@media(min-width:1101px) {
+    html:not(.native-cinema-disabled) :is(#tvshowsPage,#moviesPage) .card[data-native-cinema-wide] { width: 14.285714%; }
+}
+@media(max-width:1100px) {
+    html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButton-root { font-size: 14px; padding: 10px 12px; }
+    html:not(.native-cinema-disabled) header.MuiAppBar-root > .MuiToolbar-root:first-child { gap: 10px; }
+    html:not(.native-cinema-disabled) .native-cinema-hero-copy { width: 70%; }
+    html:not(.native-cinema-disabled) :is(#tvshowsPage,#moviesPage) .card[data-native-cinema-wide] { width: 25%; }
+}
+@media(max-width:650px) {
+    html:not(.native-cinema-disabled) header.MuiAppBar-root > .MuiToolbar-root:first-child { min-height: 56px; padding: 8px 16px; }
+    html:not(.native-cinema-disabled) .native-cinema-hero { min-height: 380px; height: min(620px,calc(100svh - 140px)); border-radius: 18px; margin: 10px 16px 28px; }
+    html:not(.native-cinema-disabled) .native-cinema-hero-copy { width: auto; left: 22px; right: 22px; bottom: 28px; }
+    html:not(.native-cinema-disabled) .native-cinema-hero-logo { height: 105px; width: 85%; }
+    html:not(.native-cinema-disabled) .native-cinema-hero-title { font-size: 32px; }
+    html:not(.native-cinema-disabled) .native-cinema-hero-overview { font-size: 14px; }
+    html:not(.native-cinema-disabled) :is(#tvshowsPage,#moviesPage) .card[data-native-cinema-wide] { width: 50%; }
+    html:not(.native-cinema-disabled) .sectionTitle { font-size: 20px; }
+}
+@media(prefers-reduced-motion:reduce) {
+    html:not(.native-cinema-disabled) .native-cinema-art { transition: none; }
+}

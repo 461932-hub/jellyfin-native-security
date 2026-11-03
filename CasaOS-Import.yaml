@@ -1,7 +1,7 @@
 name: jellyfin-native-security-test
 services:
   jellyfin:
-    image: ghcr.io/461932-hub/jellyfin-native-security:12.4-preview3
+    image: ghcr.io/461932-hub/jellyfin-native-security:12.4-preview4
     container_name: jellyfin-native-security-test
     platform: linux/amd64
     user: "0:0"

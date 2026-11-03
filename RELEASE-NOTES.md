@@ -1,28 +1,27 @@
-Preview 3 behebt den nachgestellten Android-TV-Direktstartfehler bei geaenderter
-Geraetekennung nach der Anmeldung. Der begrenzte Videoabruf erhaelt jetzt den
-bereits authentifizierten Geraetekontext der Wiedergabeaushandlung, statt auf
-die urspruengliche Token-Geraetekennung zurueckzufallen. Die native Anmelde-,
-Widerrufs-, Bibliotheks- und Quellenpruefung bleibt erhalten.
+Preview 4: Cinema-Erscheinungsbild auf dem originalen Jellyfin-Webclient.
 
-Ein eigener Docker-Laufzeittest prueft originale Videodaten trotz geaenderter
-Kennung sowie weiterhin gesperrte fremde Bibliotheken, Stoppen und Abmelden.
-Keine normalen Sitzungstokens werden in die neue Direktstream-URL geschrieben.
+- Transparente Kopfleiste am Seitenanfang, rotes Wortlogo und runde Auswahl.
+- Grosse Standbildvorschau auf Start- und Bibliotheksseiten sowie breite Karten.
+- Keine Vorschauvideos, kein Tonknopf und kein eigener Ersatzplayer.
+- Abspielen delegiert an den vorhandenen nativen Abspielknopf des Titels.
+- Navigation, Detailseiten, Suche, Filter, SyncPlay, Casting und Kontomenues
+  bleiben originale Jellyfin-Funktionen.
+- Metadaten und Bilder verwenden bestehende Anmeldung und Bibliotheksrechte.
+  Keine Sitzungstokens in Bild-/Metadatenadressen; eigene Daten werden bei
+  Abmeldung oder Kontowechsel entfernt. Root- und /media-Basispfade geprueft.
+- Fuer diesen Browser abschaltbar mit web/index.html?cinema=off; anschaltbar
+  mit web/index.html?cinema=on.
 
-Eigener Jellyfin-12.4-Testkandidat mit nativen Anmelde-/Bibliothekspruefungen
-fuer Medien und Bilder sowie begrenzten Android-TV-0.19.10-Direct-Play-Adressen.
+Die Server-Sicherheitspruefungen und der TV-Direct-Play-Fix aus Preview 3
+bleiben unveraendert. Native TV-Apps nutzen die Webgestaltung nicht.
 
-Preview 2 korrigiert den CasaOS-Import: feste Bind-Ordner ersetzen benannte
-Volumes, damit keine `[object Object]`-Eintraege entstehen. Hostport 8099 wird
-an Containerport 8096 weitergeleitet. Der kurze Starthelfer bereitet nur leere
-Config-/Cache-Mountwurzeln vor und startet Jellyfin anschliessend als Benutzer
-1000 ohne effektive Capabilities. Fremde nichtleere Verzeichnisse werden nicht
-automatisch uebernommen. Medien bleiben nur lesbar eingebunden.
+Zum Aktualisieren der vorhandenen CasaOS-Test-App nur das Image auf
+ ghcr.io/461932-hub/jellyfin-native-security:12.4-preview4
+setzen und neu erstellen lassen. Eigene Port-, Medien- und Config-Pfade
+beibehalten. Keine Neuinstallation mit fremden Konfigurationsordnern.
+Anschliessend den Webclient mit Strg+F5 neu laden.
 
-CasaOS: das alte Importformular schliessen und die neue `CasaOS-Import.yaml`
-erneut importieren. Der neue Testserver verwendet eigene Ordner unter
-`/DATA/AppData/jellyfin-native-security-test/` und ausdruecklich erlaubtes HTTP im Heimnetz.
-Die GHCR-Paketsichtbarkeit muss fuer anonymes Laden auf Public gesetzt sein.
-
-Linux-API-Tests, Docker-Startpruefung und Image-Digest liegen als Nachweise bei.
-Der physische Fire-TV-Test und die Produktionsfreigabe stehen gesondert aus.
-Vollstaendige Quellen, Lizenz, Aenderungspatch und Grenzen siehe Repository.
+Dieser Stand ist ein eigener Testkandidat, keine offizielle Jellyfin-Ausgabe.
+Browserpruefungen verwenden isolierte Beispieldaten; CI prueft weiterhin die
+nativen API-, Docker- und TV-Geraetezuordnungsfaelle. Ein vollstaendiger Test
+aller Benutzerfunktionen und aller physischen Endgeraete wird nicht behauptet.

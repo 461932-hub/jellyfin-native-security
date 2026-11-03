@@ -11,13 +11,17 @@ RUN sha256sum -c SOURCE.SHA256SUMS --quiet && \
 
 FROM jellyfin/jellyfin:12.4@sha256:7da5184caa38c553f219f6772476540081f392a68049e2b68c923f6daf877f8e
 LABEL org.opencontainers.image.title="Jellyfin native security preview" \
-      org.opencontainers.image.version="12.4-preview3" \
+      org.opencontainers.image.version="12.4-preview4" \
       org.opencontainers.image.source="https://github.com/461932-hub/jellyfin-native-security" \
       org.opencontainers.image.licenses="GPL-2.0"
 COPY --from=build /out/ /jellyfin/
 COPY server/ /usr/share/jellyfin-native-source/
 COPY SOURCE-PATCH.diff /usr/share/jellyfin-native-source/SOURCE-PATCH.diff
 COPY licenses/ /usr/share/jellyfin-native-licenses/
+COPY web/ /jellyfin/jellyfin-web/
+COPY web/ /usr/share/jellyfin-native-source/cinema-web/
+RUN grep -q '</head>' /jellyfin/jellyfin-web/index.html && \
+    sed -i 's#</head>#<link rel="stylesheet" href="cinema-native.css?v=1"><script defer src="cinema-native.js?v=1"></script></head>#' /jellyfin/jellyfin-web/index.html
 COPY docker-entrypoint.sh /usr/local/bin/jellyfin-native-entrypoint
 # CasaOS creates fresh host bind directories as root. Only the short bootstrap
 # owns empty config/cache mount roots, then gosu drops to UID/GID 1000.
@@ -28,4 +32,4 @@ RUN apt-get update && apt-get install -y --no-install-recommends gosu util-linux
 USER 0:0
 ENTRYPOINT ["/usr/local/bin/jellyfin-native-entrypoint"]
 CMD ["/jellyfin/jellyfin"]
-# Keep the official matching web client, FFmpeg, entrypoint and path variables.
+# Keep native web handlers, FFmpeg and path variables; add presentation assets.

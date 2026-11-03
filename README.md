@@ -14,7 +14,7 @@ liegen unter `server/`; `SOURCE-PATCH.diff` zeigt die Aenderungen gegen
 ## Installation ueber CasaOS
 
 Nach einem erfolgreichen Lauf unter **Actions** steht das Image unter
-`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview3` bereit.
+`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview4` bereit.
 Der Kontoinhaber muss das GitHub-Containerpaket einmal unter **Packages ->
 jellyfin-native-security -> Package settings -> Change visibility -> Public**
 oeffentlich lesbar machen. Ein oeffentliches Repository allein aendert die
@@ -72,7 +72,36 @@ das Container-Dateisystem bleibt schreibgeschuetzt. `/DATA/Media` und `/DATA/hdd
 werden nur lesbar eingebunden. Die alten Medienzugriffsschutz-Plugins bitte
 aus diesem frischen Testcontainer heraushalten; sie koennten ihre bisherige
 Wiedergabeanpassung erneut anwenden. Cinema und Vorschlagsboard sind separate
-Erweiterungen; dieses Image verwendet zuerst die Original-Weboberflaeche.
+Erweiterungen. Preview 4 gestaltet den Original-Webclient im Cinema-Stil.
+
+## Cinema-Design mit originalen Funktionen
+
+Die obere Leiste ist am Seitenanfang transparent. Das rote Wortlogo, grosse
+Standbilder, breite Medienkarten, runde Auswahlflaechen und passende Menues
+lehnen sich an das Cinema-Projekt an. Vorschauen enthalten keine eigenen
+Videoelemente und keine Tonsteuerung.
+
+Die vorhandenen Jellyfin-Seiten, Navigationslinks, Such-, Filter-, SyncPlay-,
+Cast- und Kontomenues bleiben erhalten. Der neue grosse Abspielknopf klickt
+die vorhandene native Abspieltaste desselben Titels; er startet keinen eigenen
+Player und veraendert keine Wiedergabe- oder Transcoding-Einstellungen.
+Weitere Informationen oeffnen die originale Jellyfin-Detailseite.
+
+Die Erweiterung liest nur Metadaten zu den bereits angezeigten erlaubten
+Titeln. Sie bindet sich an die aktuelle Anmeldung und denselben Server-Ursprung
+einschliesslich Basispfad. Zugangstokens stehen im Anfrageheader, nicht in
+Bild- oder Metadatenadressen. Bei Abmeldung und Kontowechsel werden die eigenen
+Vorschauen und Zwischenspeicher entfernt. Ein fehlgeschlagener Abruf laesst
+die originalen Seiten benutzbar.
+
+Mit `web/index.html?cinema=off` laesst sich die Gestaltung fuer diesen Browser
+abschalten, mit `web/index.html?cinema=on` wieder einschalten. Anschliessend
+normale Jellyfin-Adressen funktionieren weiterhin. Die Webdateien liegen
+offen unter `web/` und im Image bei den vollstaendigen Quellen. Die nativen
+Anmelde-, Medien- und Bibliothekspruefungen entsprechen weiter Preview 3.
+
+Native Android-TV-/Fire-TV-Apps verwenden diese Webgestaltung nicht. Der
+vorhandene TV-Direct-Play-Pfad wird nicht umgestellt.
 
 ## Build und Nachweise
 
