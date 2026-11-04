@@ -32,7 +32,10 @@ def info(port):
         c.request('GET', '/System/Info/Public')
         r = c.getresponse()
         assert r.status == 200
-        return json.loads(r.read(100000))
+        assert r.getheader('X-Jellyfin-Media-Security') == 'native-preview-1', 'Bootstrap host is not the ready application'
+        value = json.loads(r.read(100000))
+        assert isinstance(value.get('StartupWizardCompleted'), bool), 'Native startup state is not ready'
+        return value
     finally:
         c.close()
 

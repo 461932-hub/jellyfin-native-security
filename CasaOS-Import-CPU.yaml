@@ -120,6 +120,8 @@ x-casaos:
   index: /web/
   port_map: "${WEBUI_PORT:-8096}"
   title:
+    en_us: Jellyfin Cinema
+    de_de: Jellyfin Cinema
     en_US: Jellyfin Cinema
     de_DE: Jellyfin Cinema
   description:
