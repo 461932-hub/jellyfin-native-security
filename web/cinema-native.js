@@ -32,6 +32,7 @@
     let lastPointer = null, scrollHoverTimer, hoverOpening = null, hoverClosing = null;
     let heroSnap = null;
     let details = null, detailsAbort = null, detailsTicket = 0;
+    let news = null;
 
     function session() {
         try {
@@ -47,6 +48,7 @@
     function reset(key) {
         if (key === sessionKey) return;
         sessionKey = key; generation++; retryAfter = 0;
+        if (news && news.key !== key) destroyNews();
         controller.abort(); controller = new AbortController(); cache.clear();
         hideHover(); closeDetails(false);
         destroyHeroSnap(); hero?.remove(); hero = null; heroKey = '';
@@ -142,6 +144,146 @@
         const node = document.createElement(tag); node.className = className;
         if (text) node.textContent = text;
         return node;
+    }
+
+    // Cinema's Header module: five movies from the last five days, with a
+    // per-server/user seen time. Keep native header controls and authentication.
+    function recentNews(items, now = Date.now()) {
+        const seen = new Set();
+        return items.filter(item => item && typeof item === 'object').sort((a, b) => Date.parse(b.DateCreated) - Date.parse(a.DateCreated)).filter(item => {
+            const at = Date.parse(item.DateCreated);
+            if (item.Type !== 'Movie' || !validId(item.Id) || seen.has(item.Id) || !Number.isFinite(at) || at > now || now - at >= 5 * 86400000) return false;
+            seen.add(item.Id); return true;
+        }).slice(0, 5);
+    }
+
+    function newsDate(at) {
+        const seconds = Math.max(0, Math.floor((Date.now() - Date.parse(at)) / 1000));
+        if (seconds < 60) return 'Gerade hinzugef\u00fcgt';
+        if (seconds < 3600) { const n = Math.floor(seconds / 60); return 'vor ' + n + (n === 1 ? ' Minute' : ' Minuten'); }
+        if (seconds < 86400) { const n = Math.floor(seconds / 3600); return 'vor ' + n + (n === 1 ? ' Stunde' : ' Stunden'); }
+        const n = Math.floor(seconds / 86400); return 'vor ' + n + (n === 1 ? ' Tag' : ' Tagen');
+    }
+
+    function currentNews(state) { return news === state && session()?.key === state.key; }
+    function closeNews(restore = false) {
+        if (!news) return;
+        news.panel.hidden = true; news.button.setAttribute('aria-expanded', 'false');
+        if (restore && news.button.isConnected) news.button.focus({ preventScroll: true });
+    }
+    function destroyNews() {
+        if (!news) return;
+        const state = news; news = null;
+        clearInterval(state.poll); state.request?.abort(); state.box.remove(); state.panel.remove();
+        state.items = [];
+    }
+    function positionNews() {
+        if (!news || news.panel.hidden) return;
+        const rect = news.button.getBoundingClientRect(), width = Math.min(360, innerWidth - 32);
+        const top = Math.min(rect.bottom + 10, Math.max(16, innerHeight - 100));
+        Object.assign(news.panel.style, { width: width + 'px', top: top + 'px',
+            left: Math.max(16, Math.min(rect.right - width, innerWidth - width - 16)) + 'px',
+            maxHeight: Math.max(64, Math.min(480, innerHeight - top - 16)) + 'px' });
+    }
+    function renderNews(state) {
+        if (!currentNews(state)) return;
+        state.items = recentNews(state.items); state.list.replaceChildren();
+        for (const item of state.items) {
+            const row = element('button', 'native-cinema-news-item'); row.type = 'button';
+            row.setAttribute('aria-label', 'Mehr Infos zu ' + (item.Name || 'Film'));
+            const image = element('img', 'native-cinema-news-image'); image.alt = ''; image.loading = 'lazy'; image.referrerPolicy = 'no-referrer';
+            image.onerror = () => { image.hidden = true; }; image.src = imageUrl(item, landscape(item), 240);
+            const picture = element('span', 'native-cinema-news-picture'); picture.append(image);
+            const copy = element('span', 'native-cinema-news-copy');
+            copy.append(element('strong', '', String(item.Name || 'Film')),
+                element('span', '', 'Neu hinzugef\u00fcgt'), element('small', '', newsDate(item.DateCreated)));
+            row.append(picture, copy); state.list.append(row);
+            row.addEventListener('click', () => {
+                if (!currentNews(state)) return;
+                closeNews(); openDetails(item.Id, currentCard(item.Id), state.button);
+            });
+        }
+        if (!state.items.length) {
+            const text = !state.loaded ? 'Benachrichtigungen werden geladen \u2026'
+                : state.error ? 'Benachrichtigungen konnten nicht geladen werden.' : 'Keine neuen Filme in den letzten f\u00fcnf Tagen.';
+            const status = element('p', 'native-cinema-news-empty', text); status.setAttribute('role', 'status'); state.list.append(status);
+        }
+        const count = state.items.filter(item => Date.parse(item.DateCreated) > state.seenAt).length;
+        state.badge.textContent = String(count); state.badge.hidden = !count;
+        state.button.setAttribute('aria-label', count ? 'Benachrichtigungen (' + count + ' ungelesen)' : 'Benachrichtigungen');
+        positionNews();
+    }
+    async function refreshNews(state) {
+        const auth = session();
+        if (!currentNews(state) || document.hidden || state.request || Date.now() - state.lastAt < 5000) return;
+        state.lastAt = Date.now();
+        const request = new AbortController(); state.request = request;
+        const timeout = setTimeout(() => request.abort(), 15000);
+        try {
+            const query = new URLSearchParams({ UserId: auth.user, Recursive: 'true', IncludeItemTypes: 'Movie',
+                ExcludeLocationTypes: 'Virtual', SortBy: 'DateCreated', SortOrder: 'Descending', Fields: 'DateCreated',
+                EnableImageTypes: 'Primary,Backdrop,Thumb', ImageTypeLimit: '1', EnableUserData: 'false',
+                EnableTotalRecordCount: 'false', Limit: '5' });
+            const data = await readJson('/Items?' + query, auth, request.signal);
+            if (!currentNews(state)) return;
+            state.items = Array.isArray(data.Items) ? data.Items.slice(0, 100) : []; state.error = false; state.loaded = true;
+            renderNews(state);
+        } catch {
+            if (currentNews(state)) { state.items = []; state.error = true; state.loaded = true; renderNews(state); }
+        } finally { clearTimeout(timeout); if (state.request === request) state.request = null; }
+    }
+    function openNews(state) {
+        if (!currentNews(state)) return;
+        hideHover(); state.panel.hidden = false; state.button.setAttribute('aria-expanded', 'true');
+        state.seenAt = Date.now();
+        try { localStorage.setItem(state.seenKey, String(state.seenAt)); } catch { /* Optional per-user seen time. */ }
+        renderNews(state); refreshNews(state);
+    }
+    function syncNews() {
+        const auth = session();
+        if (!auth || news && news.key !== auth.key) destroyNews();
+        if (!auth) return;
+        const bar = document.querySelector('header.MuiAppBar-root > .MuiToolbar-root:first-child');
+        const anchor = bar?.querySelector('button:has(svg[data-testid="GroupsIcon"])')
+            || bar?.querySelector('button[aria-controls="app-user-menu"]');
+        if (!anchor || !anchor.getClientRects().length) { destroyNews(); return; }
+        if (news) {
+            if (news.box.parentElement !== anchor.parentElement || news.box.nextSibling !== anchor) anchor.before(news.box);
+            return;
+        }
+        const box = element('span', 'native-cinema-news'); box.dataset.nativeCinemaOwned = '';
+        const button = element('button', 'native-cinema-news-button'); button.type = 'button'; button.title = 'Benachrichtigungen';
+        button.setAttribute('aria-label', 'Benachrichtigungen'); button.setAttribute('aria-expanded', 'false'); button.setAttribute('aria-controls', 'native-cinema-notifications');
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        for (const [key, value] of Object.entries({ viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor',
+            'stroke-width': '1.7', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' })) svg.setAttribute(key, value);
+        const path = document.createElementNS(svg.namespaceURI, 'path');
+        path.setAttribute('d', 'M4 17h16l-2-3V9a6 6 0 0 0-12 0v5l-2 3Zm6 3a2 2 0 0 0 4 0M12 1v2'); svg.append(path);
+        const badge = element('span', 'native-cinema-news-badge'); badge.hidden = true; badge.setAttribute('aria-hidden', 'true'); button.append(svg, badge); box.append(button);
+        const panel = element('section', 'native-cinema-news-panel'); panel.id = 'native-cinema-notifications'; panel.hidden = true;
+        panel.dataset.nativeCinemaOwned = ''; panel.setAttribute('role', 'region'); panel.setAttribute('aria-label', 'Neue Filme');
+        const list = element('div', 'native-cinema-news-list'); panel.append(list);
+        const server = window.ApiClient.serverId?.();
+        const seenKey = 'cinema-news-seen:' + (validId(server) ? server : base) + ':' + auth.user;
+        let seenAt = 0;
+        try { seenAt = Math.min(Date.now(), Math.max(0, Number(localStorage.getItem(seenKey)) || 0)); } catch { /* Optional. */ }
+        const state = { key: auth.key, box, button, badge, panel, list, seenKey, seenAt,
+            items: [], loaded: false, error: false, lastAt: 0, request: null, poll: null };
+        news = state; anchor.before(box); document.body.append(panel);
+        button.addEventListener('click', () => { if (panel.hidden) openNews(state); else closeNews(); });
+        renderNews(state); refreshNews(state);
+        state.poll = setInterval(() => { if (currentNews(state)) { renderNews(state); refreshNews(state); } }, 60000);
+    }
+
+    function newsOutside(event) {
+        if (news && !news.panel.hidden && !event.composedPath().includes(news.box) && !event.composedPath().includes(news.panel)) closeNews();
+    }
+    function newsKeydown(event) {
+        if (!news) return;
+        if (event.key === 'Escape' && !news.panel.hidden) { event.preventDefault(); event.stopPropagation(); closeNews(true); }
+        else if (event.key === 'ArrowDown' && event.target === news.button) {
+            event.preventDefault(); openNews(news); news.list.querySelector('button')?.focus();
+        }
     }
 
     function currentCard(id, hint) {
@@ -381,7 +523,7 @@
         finally { if (ticket === hoverTicket && pendingHoverCard === card) pendingHoverCard = null; }
     }
     function pointerOver(event) {
-        if (!matchMedia('(hover: hover) and (pointer: fine)').matches || details || event.pointerType === 'touch') return;
+        if (!matchMedia('(hover: hover) and (pointer: fine)').matches || details || news && !news.panel.hidden || event.pointerType === 'touch') return;
         if (event.target.closest?.('.native-cinema-hover')) { if (hover?.contains(event.target)) clearTimeout(leaveTimer); return; }
         const card = event.target.closest?.('.card[data-id]');
         if (!card || !validId(card.dataset.id) || !['Movie', 'Series', 'Episode'].includes(card.dataset.type) || !activePage()?.contains(card)) return;
@@ -789,7 +931,7 @@
         finally { pending = false; if (followup) { followup = false; schedule(); } }
     }
 
-    function schedule() { window.__nativeCinemaRouteChanged?.(); clearTimeout(timer); timer = setTimeout(refresh, 140); }
+    function schedule() { window.__nativeCinemaRouteChanged?.(); syncNews(); clearTimeout(timer); timer = setTimeout(refresh, 140); }
     function scroll() {
         hideHover();
         clearTimeout(scrollHoverTimer);
@@ -810,15 +952,23 @@
     function start() {
         observer.observe(document.body, { childList: true, subtree: true });
         document.addEventListener('scroll', scroll, { capture: true, passive: true });
-        window.addEventListener('hashchange', () => { heroSnap?.controller.reset(); hideHover(); closeDetails(false); scroll(); schedule(); });
+        window.addEventListener('hashchange', () => { closeNews(); heroSnap?.controller.reset(); hideHover(); closeDetails(false); scroll(); schedule(); });
+        document.addEventListener('pointerdown', newsOutside, true);
+        document.addEventListener('click', newsOutside, true);
+        document.addEventListener('keydown', newsKeydown, true);
+        window.addEventListener('storage', event => {
+            if (news && event.key === news.seenKey) {
+                news.seenAt = Math.min(Date.now(), Math.max(0, Number(event.newValue) || 0)); renderNews(news);
+            }
+        });
         document.addEventListener('pointerover', pointerOver);
         document.addEventListener('pointermove', event => { lastPointer = { x: event.clientX, y: event.clientY, type: event.pointerType }; }, { passive: true });
         document.addEventListener('pointerout', pointerOut);
         document.addEventListener('click', cardClick, true);
         document.addEventListener('keydown', event => { if (event.key === 'Escape') hideHover(); });
-        window.addEventListener('resize', hideHover);
-        document.addEventListener('visibilitychange', schedule);
-        setInterval(() => { if ((session()?.key || '') !== sessionKey) schedule(); }, 1200);
+        window.addEventListener('resize', () => { hideHover(); positionNews(); });
+        document.addEventListener('visibilitychange', () => { schedule(); if (news && !document.hidden) { renderNews(news); refreshNews(news); } });
+        setInterval(() => { syncNews(); if ((session()?.key || '') !== sessionKey) schedule(); }, 1200);
         schedule();
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });

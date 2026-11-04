@@ -14,7 +14,7 @@ liegen unter `server/`; `SOURCE-PATCH.diff` zeigt die Aenderungen gegen
 ## Installation ueber CasaOS
 
 Nach einem erfolgreichen Lauf unter **Actions** steht das Image unter
-`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview17` bereit.
+`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview18` bereit.
 Der Kontoinhaber muss das GitHub-Containerpaket einmal unter **Packages ->
 jellyfin-native-security -> Package settings -> Change visibility -> Public**
 oeffentlich lesbar machen. Ein oeffentliches Repository allein aendert die
@@ -93,6 +93,18 @@ haben getrennte runde Ziele mit einheitlichem Abstand. Originale Buttons,
 Symbole, Hinweise, Menues und deaktivierte Zustaende bleiben erhalten. Kleine
 Fenster behalten die native kompakte Darstellung und koennen die Gruppen
 bei Platzmangel umbrechen. Tastaturfokus bleibt sichtbar.
+
+Die Benachrichtigungsglocke uebernimmt das Verhalten des Cinema-Headers:
+hoechstens fuenf neu hinzugefuegte Filme aus den letzten fuenf Tagen. Der rote
+Zaehler zeigt ungesehene Eintraege. Oeffnen markiert sie fuer das jeweilige
+Server-/Benutzerpaar als gesehen; in lokalen Einstellungen wird nur dieser
+Zeitpunkt gespeichert. Neue Eintraege werden einmal pro Minute geladen,
+waehrend der Client sichtbar ist. Ein Klick oeffnet das vorhandene Cinema-
+Infofenster. Die vorhandenen SyncPlay-, Cast-, Such- und Kontoknoepfe bleiben
+aktiv. Filme und Bilder werden mit der aktuellen Anmeldung angefordert.
+Abmeldung oder Kontowechsel entfernen die Liste und brechen laufende Anfragen
+ab. Abgewiesene Anfragen entfernen bisherige Eintraege. Anfrageadressen enthalten
+keine Zugangstokens. Die Glocke ist bei cinema=off ebenfalls abgeschaltet.
 
 Die vorhandenen Jellyfin-Seiten, Navigationslinks, Such-, Filter-, SyncPlay-,
 Cast- und Kontomenues bleiben erhalten. Der neue grosse Abspielknopf klickt
@@ -184,7 +196,7 @@ vorhandene TV-Direct-Play-Pfad wird nicht umgestellt.
 ## Build und Nachweise
 
 ```sh
-docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview17 .
+docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview18 .
 ```
 
 Der Build prueft die Quellpruefsummen, kompiliert die Linux-x64-Laufzeit und
