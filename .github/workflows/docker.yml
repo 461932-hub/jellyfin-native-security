@@ -16,7 +16,7 @@ jobs:
       packages: write
     env:
       IMAGE: ghcr.io/${{ github.repository }}
-      VERSION: 12.4-preview22
+      VERSION: 12.4-preview23
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -24,14 +24,15 @@ jobs:
       - name: Check sources and CasaOS configuration
         run: |
           sha256sum -c SOURCE.SHA256SUMS --quiet
-          AppID=ci-model WEBUI_PORT=18098 docker compose -p ci-model -f CasaOS-Import.yaml config --quiet
+          AppID=ci-model docker compose -p ci-model -f CasaOS-Import.yaml config --quiet
           bash -n tests/docker-smoke.sh
           sh -n docker-entrypoint.sh
           sh -n docker-start.sh
           python3 tests/verify-casaos-import.py
       - name: Check Cinema presentation and original web controls
         run: |
-          npm install --prefix /tmp/native-cinema-browser --ignore-scripts --no-audit --no-fund playwright-core@1.64.1
+          npm install --prefix /tmp/native-cinema-browser --ignore-scripts --no-audit --no-fund playwright-core@1.64.1 yaml@2.8.1
+          CINEMA_YAML=/tmp/native-cinema-browser/node_modules/yaml node tests/casaos-port-import.cjs
           NATIVE_CINEMA_PLAYWRIGHT=/tmp/native-cinema-browser/node_modules/playwright-core \
             CHROME_PATH="$(command -v google-chrome)" node tests/cinema-browser.cjs
           NATIVE_CINEMA_PLAYWRIGHT=/tmp/native-cinema-browser/node_modules/playwright-core \
@@ -78,10 +79,10 @@ jobs:
         run: |
           if gh release view "$VERSION" >/dev/null 2>&1; then
             gh release upload "$VERSION" CasaOS-Import.yaml CasaOS-Import-CPU.yaml CasaOS-Import-Parallel.yaml compose.yaml INSTALLATION.md image-digest.txt \
-              test-results/docker-smoke.json test-results/tv-device-identity.json test-results/cinema-browser.json test-results/cinema-news.json test-results/cinema-featured.json test-results/cinema-loading.json test-results/cinema-pagination.json test-results/cinema-startup.json test-results/casaos-import.json test-results/wizard-start.png test-results/public-install.json test-results/first-run-browser.json test-results/api-linux.trx --clobber
+              test-results/docker-smoke.json test-results/tv-device-identity.json test-results/cinema-browser.json test-results/cinema-news.json test-results/cinema-featured.json test-results/cinema-loading.json test-results/cinema-pagination.json test-results/cinema-startup.json test-results/casaos-import.json test-results/casaos-port-import.json test-results/wizard-start.png test-results/public-install.json test-results/first-run-browser.json test-results/api-linux.trx --clobber
           else
             gh release create "$VERSION" --target "$GITHUB_SHA" --prerelease \
               --title 'Jellyfin Cinema 12.4 - fresh-installation candidate' \
               --notes-file RELEASE-NOTES.md CasaOS-Import.yaml CasaOS-Import-CPU.yaml CasaOS-Import-Parallel.yaml compose.yaml INSTALLATION.md image-digest.txt \
-              test-results/docker-smoke.json test-results/tv-device-identity.json test-results/cinema-browser.json test-results/cinema-news.json test-results/cinema-featured.json test-results/cinema-loading.json test-results/cinema-pagination.json test-results/cinema-startup.json test-results/casaos-import.json test-results/wizard-start.png test-results/public-install.json test-results/first-run-browser.json test-results/api-linux.trx
+              test-results/docker-smoke.json test-results/tv-device-identity.json test-results/cinema-browser.json test-results/cinema-news.json test-results/cinema-featured.json test-results/cinema-loading.json test-results/cinema-pagination.json test-results/cinema-startup.json test-results/casaos-import.json test-results/casaos-port-import.json test-results/wizard-start.png test-results/public-install.json test-results/first-run-browser.json test-results/api-linux.trx
           fi

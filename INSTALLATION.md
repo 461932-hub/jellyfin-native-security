@@ -16,7 +16,10 @@ Administratorpasswort. Andere Architekturen sind in diesem Image nicht enthalten
 2. CasaOS: **+ -> Benutzerdefinierte App installieren -> Importieren**.
 3. Datei auswaehlen. Eigenen Titel, Benutzer-ID `PUID`, Gruppen-ID `PGID`,
    Zeitzone `TZ`, Medienpfade und freie Hostports pruefen. CasaOS vergibt
-   ohne festgelegtes `name` einen eigenen App-Namen und freien HTTP-Port.
+   ohne festgelegtes `name` einen eigenen App-Namen. Die numerischen
+   Hostport-Vorgaben sind 8096 (Standard/CPU) bzw. 8100 (Parallel).
+   Falls belegt, Hostport und Web-UI-Port auf dieselbe freie Zahl aendern.
+   Der interne Container-Port bleibt 8096.
 4. Die Hostpfade fuer `/config` und `/cache` muessen unter dem neuen
    `/DATA/AppData/<AppID>/` liegen. **Keine Datenordner eines anderen laufenden
    Servers eintragen.** `/Media` und `/HDD` duerfen auf eigene Medien zeigen.
@@ -46,7 +49,7 @@ Keine festen alten `container_name`, `x-casaos.id` oder Konfigurationspfade
 uebernehmen. Medienordner koennen bei passenden Berechtigungen geteilt werden.
 
 Zum **Aktualisieren** dagegen die vorhandene CasaOS-App bearbeiten: Image
-`ghcr.io/461932-hub/jellyfin-native-security`, Tag `12.4-preview22`.
+`ghcr.io/461932-hub/jellyfin-native-security`, Tag `12.4-preview23`.
 Vorhandene Namen, Ports, Ordner und eigene Einstellungen erhalten, danach
 aktualisieren und den Browser mit Strg+F5 neu laden. Nicht erneut importieren,
 wenn die vorhandene Installation aktualisiert werden soll. Vorher sichern.
@@ -143,10 +146,22 @@ docker compose -p mein-jellyfin -f compose.yaml up -d
 ```
 
 Fuer eine weitere Instanz einen anderen Projektnamen und freie Hostports
-waehlen. `WEBUI_PORT` steuert den HTTP-Port. Andere feste Zusatzports muessen
+waehlen. Den numerischen `published`-Wert der HTTP-Zuordnung und den Web-UI-Port
+bei Bedarf gemeinsam auf einen freien Host-Port aendern. Andere feste Zusatzports muessen
 ebenfalls frei sein oder aus der zweiten Datei entfernt werden. Die GPU-
 Freigabe kann wie oben ergaenzt werden. Bestehende Daten werden nie absichtlich
 geloescht oder zurueckgesetzt.
+
+## CasaOS zeigt NaN im Portfeld
+
+Alte Preview22-Dateien enthielten einen Docker-Portplatzhalter, den der
+CasaOS-Importdialog vor der Variablenaufloesung falsch als Zahlen zerlegen
+konnte. Ab Preview23 sind die Portfelder explizite numerische YAML-Objekte
+wie in der originalen CasaOS-Vorlage. Standard: Host 8096 -> Container 8096,
+Parallel: Host 8100 -> Container 8096, jeweils TCP. Der Web-UI-Port stimmt
+mit dem vorgeschlagenen Host-Port ueberein. Eine alte geoeffnete Importmaske
+schliessen und die neue Datei importieren; alternativ dort Container-Port
+8096 und einen freien Host-/Web-UI-Port eintragen.
 
 ## Nachweise und Grenzen
 

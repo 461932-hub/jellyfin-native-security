@@ -2,16 +2,24 @@
 # $AppID binds config/cache to that installation, not to a developer's test data.
 services:
   jellyfin:
-    image: ghcr.io/461932-hub/jellyfin-native-security:12.4-preview22
+    image: ghcr.io/461932-hub/jellyfin-native-security:12.4-preview23
     platform: linux/amd64
     user: "0:0"
     restart: unless-stopped
     network_mode: bridge
     ports:
-      - "${WEBUI_PORT:-8096}:8096/tcp"
-      - "8920:8920/tcp"
-      - "7359:7359/udp"
-      - "1900:1900/udp"
+      - target: 8096
+        published: "8096"
+        protocol: tcp
+      - target: 8920
+        published: "8920"
+        protocol: tcp
+      - target: 7359
+        published: "7359"
+        protocol: udp
+      - target: 1900
+        published: "1900"
+        protocol: udp
     environment:
       PUID: "1000"
       PGID: "1000"
@@ -118,7 +126,7 @@ x-casaos:
   icon: https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@main/Apps/Jellyfin/icon.svg
   scheme: http
   index: /web/
-  port_map: "${WEBUI_PORT:-8096}"
+  port_map: "8096"
   title:
     en_us: Jellyfin Cinema
     de_de: Jellyfin Cinema
@@ -127,4 +135,4 @@ x-casaos:
   description:
     en_US: Jellyfin with Cinema presentation and additional media authentication. Original first-run wizard; no preset account or library. CPU template; hardware devices can be added in CasaOS.
     de_DE: Jellyfin mit Cinema-Darstellung und zusaetzlicher Medienanmeldung. Originaler Einrichtungsassistent ohne vorgegebenes Konto oder Bibliothek. CPU-Vorlage; Hardwaregeraete koennen in CasaOS hinzugefuegt werden.
-  version: 12.4-preview22
+  version: 12.4-preview23

@@ -21,7 +21,7 @@ werden beim Aktualisieren bewusst weiterverwendet und nicht zurueckgesetzt.
 
 Die Schritt-fuer-Schritt-Anleitung steht in [INSTALLATION.md](INSTALLATION.md).
 Das oeffentlich lesbare Image lautet
-`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview22` (Linux/amd64).
+`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview23` (Linux/amd64).
 Es ist ein Community-Testkandidat mit Cinema-Design und den bereits geprueften
 zusaetzlichen Anmelde-/Bibliothekspruefungen, keine offizielle Jellyfin-Ausgabe.
 
@@ -34,7 +34,9 @@ zusaetzlichen Anmelde-/Bibliothekspruefungen, keine offizielle Jellyfin-Ausgabe.
 
 CasaOS vergibt bei einem **neuen Import** einen eigenen App-Namen. Die Vorlagen
 verwenden seine `$AppID` fuer getrennte `/config`- und `/cache`-Ordner und
-`$WEBUI_PORT` fuer einen freien HTTP-Port. Sie erzwingen weder denselben
+feste numerische Portfelder fuer den CasaOS-Import. Die Standardvorlage
+verwendet Host-Port 8096, die Parallelvorlage 8100; vor dem Start einen freien
+Port waehlen und den Web-UI-Port entsprechend setzen. Sie erzwingen weder denselben
 Container-Namen noch dieselbe feste CasaOS-ID. Zum **Aktualisieren** dagegen die
 vorhandene App bearbeiten und nur den Image-Tag aendern; nicht erneut importieren.
 Ein zweiter neuer Container verweigert ausserdem den gleichzeitigen Zugriff auf
@@ -231,7 +233,7 @@ vorhandene TV-Direct-Play-Pfad wird nicht umgestellt.
 ## Build und Nachweise
 
 ```sh
-docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview22 .
+docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview23 .
 ```
 
 Der Build prueft die Quellpruefsummen, kompiliert die Linux-x64-Laufzeit und
