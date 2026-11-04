@@ -92,6 +92,81 @@ html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiAvatar-root { border
 html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiBadge-colorPrimary { background: #e50914 !important; }
 html:not(.native-cinema-disabled) :is(a,button,input,select,textarea):focus-visible { outline-color: #fff; outline-offset: 3px; }
 
+/* Library tools keep their original buttons and handlers. Play and shuffle
+   form one white split button; other actions have their own round targets. */
+html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiStack-root:has(> .MuiButtonGroup-root.MuiButtonGroup-text) {
+    column-gap: 12px; row-gap: 8px; align-items: center;
+}
+html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButtonGroup-root.MuiButtonGroup-horizontal {
+    display: inline-flex; align-items: center; flex-shrink: 0;
+    gap: 8px; padding: 0; margin: 0; border: 0; box-shadow: none;
+    background: none;
+}
+html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButtonGroup-root.MuiButtonGroup-horizontal > button.MuiButton-root {
+    box-sizing: border-box; height: 44px; min-width: 44px;
+    margin: 0 !important; padding: 0;
+    border: 1px solid #ffffff1a !important; border-radius: 50% !important;
+    background: #ffffff06 !important; background-image: none !important;
+    color: #eeeeec !important; box-shadow: none !important;
+    font: 600 14px/1 Arial,Helvetica,sans-serif; letter-spacing: 0;
+    text-transform: none;
+    transition: background-color 150ms ease, border-color 150ms ease;
+}
+html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButtonGroup-root.MuiButtonGroup-horizontal > button.MuiButton-root svg { width: 20px; height: 20px; }
+html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButtonGroup-root.MuiButtonGroup-horizontal > button.MuiButton-root:hover {
+    background: #ffffff18 !important; border-color: #ffffff40 !important;
+}
+html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButtonGroup-root.MuiButtonGroup-text > button.MuiButton-root:is([aria-expanded="true"],[aria-pressed="true"],.Mui-selected) {
+    background: #ffffff20 !important; border-color: #ffffff66 !important; color: white !important;
+}
+html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButtonGroup-root.MuiButtonGroup-horizontal > button.MuiButton-root.Mui-disabled {
+    color: #686868 !important; background: transparent !important; border-color: #ffffff0a !important;
+}
+html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButtonGroup-root.MuiButtonGroup-horizontal > button.MuiButton-root:focus-visible {
+    outline: 2px solid white; outline-offset: 3px; z-index: 1;
+}
+html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButtonGroup-root.MuiButtonGroup-contained {
+    gap: 0; border-radius: 24px; background: #f5f5f1;
+}
+html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButtonGroup-root.MuiButtonGroup-contained > button.MuiButton-root {
+    background: #f5f5f1 !important; color: #141414 !important;
+    border: 0 !important; border-radius: 0 !important;
+}
+html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButtonGroup-root.MuiButtonGroup-contained > button.MuiButton-root:first-child {
+    padding: 0 18px; border-radius: 24px 0 0 24px !important; font-weight: 700;
+}
+html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButtonGroup-root.MuiButtonGroup-contained > button.MuiButton-root:last-child {
+    min-width: 48px; border-left: 1px solid #14141426 !important;
+    border-radius: 0 24px 24px 0 !important;
+}
+html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButtonGroup-root.MuiButtonGroup-contained > button.MuiButton-root:only-child {
+    border: 0 !important; border-radius: 24px !important;
+}
+html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButtonGroup-root.MuiButtonGroup-contained > button.MuiButton-root .MuiButton-startIcon {
+    margin-left: 0; margin-right: 9px;
+}
+html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButtonGroup-root.MuiButtonGroup-contained > button.MuiButton-root:hover {
+    background: #dededb !important; color: #141414 !important;
+}
+html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButtonGroup-root.MuiButtonGroup-contained > button.MuiButton-root.Mui-disabled {
+    background: #ccccca !important; color: #777 !important;
+}
+html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButtonGroup-root:has(svg[data-testid="NavigateNextIcon"]) {
+    padding-left: 12px; margin-left: 4px; border-left: 1px solid #ffffff1f;
+}
+@media (max-width: 600px) {
+    html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiStack-root:has(> .MuiButtonGroup-root.MuiButtonGroup-text) {
+        flex-wrap: wrap; justify-content: flex-end; column-gap: 8px;
+    }
+    html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButtonGroup-root.MuiButtonGroup-text { gap: 4px; }
+    html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButtonGroup-root.MuiButtonGroup-contained > button.MuiButton-root:first-child { padding: 0 12px; }
+    html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButtonGroup-root.MuiButtonGroup-contained > button.MuiButton-root:last-child { min-width: 44px; }
+    html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButtonGroup-root:has(svg[data-testid="NavigateNextIcon"]) { padding-left: 8px; margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    html:not(.native-cinema-disabled) header.MuiAppBar-root .MuiButtonGroup-root.MuiButtonGroup-horizontal > button.MuiButton-root { transition: none; }
+}
+
 /* Big still-image preview; no preview player, sound toggle or autoplay. */
 html:not(.native-cinema-disabled) .native-cinema-hero {
     position: relative; isolation: isolate; overflow: hidden;

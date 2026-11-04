@@ -1,27 +1,25 @@
-Preview 16: Folgenanzahl direkt hinter den Staffelnamen.
+Preview 17: aufgeraeumte Bibliotheks-Werkzeugleiste in der weissen Cinema-Variante.
 
-In der Folgenauswahl stehen jetzt Staffelnamen und Gesamtzahl zusammen,
-beispielsweise "Staffel 1 · 25 Folgen". "Alle Staffeln" zeigt ebenfalls die
-Gesamtzahl. Eine einzelne Folge wird als "1 Folge" angezeigt, eine leere
-Staffel als "0 Folgen". Die Auswahlwerte und die originale Folgenwiedergabe
-bleiben erhalten.
+"Alle abspielen" und die Zufallspfeile bilden wie im Original eine gemeinsame
+Flaeche mit feiner Trennlinie. Die Flaeche ist weiss mit dunklem Text und dunklen
+Symbolen. Filter, Sortierung, Ansichtsmenue und Seitenwechsel erhalten gleich
+grosse runde Knoepfe, dezente Konturen und klare Abstaende. Deaktivierte Pfeile
+bleiben erkennbar; Tastaturfokus und reduzierte Bewegung werden beruecksichtigt.
+Auf kleinen Bildschirmen bleibt die native kompakte Darstellung erhalten,
+bei Platzmangel brechen die Werkzeuggruppen um.
 
-Die Zahlen werden mit der aktuellen Anmeldung ueber dieselbe Serien-/
-Folgenschnittstelle ermittelt. Zaehlanfragen verwenden Limit 0, ohne Bilder und
-Benutzerdaten; maximal drei laufen parallel. Die bestehende paginierte
-Folgenantwort aktualisiert die Zahl der aktuellen Auswahl ebenfalls. Fehlerhafte
-oder fehlende Zaehler blockieren die Auswahl nicht. Schliessen, Titelwechsel
-und Abmeldung verhindern weitere Anfragen und spaete Aktualisierungen.
+Die Aenderung betrifft nur das Aussehen der vorhandenen Werkzeuggruppen.
+Native Buttons, Symbole, Beschriftungen, Menues und Funktionen bleiben aktiv.
+Wiedergabe, Berechtigungen und Serverlogik wurden nicht geaendert.
 
 Vorhandene CasaOS-Test-App aktualisieren:
-ghcr.io/461932-hub/jellyfin-native-security:12.4-preview16
+ghcr.io/461932-hub/jellyfin-native-security:12.4-preview17
 Ports und Ordner beibehalten. Anschliessend Strg+F5.
 
-Pruefung: 90 Browserfaelle fuer / und /media; Gesamtzahl statt angezeigter
-Seitengroesse, Einzahl/Mehrzahl/0, fehlgeschlagener Zaehler, weiter funktionierende
-Auswahl/Wiedergabe und abgebrochene Zaehler ohne Uebernahme in den naechsten Titel.
-Echte native Oberflaeche: Re:ZERO mit vier Staffeln (25, 25, 16, 7 Folgen),
-Gesamtzahl 73, jeweils unabhaengig gegen die API geprueft. Authentifizierte
-Zaehlanfragen, maximal drei gleichzeitig, sowie Staffelauswahl und Schliessen
-geprueft. Keine Wiedergabe gestartet. Bestehende API-, TV- und Docker-Pruefungen.
+Pruefung: native Filme-Werkzeugleiste mit verbundenem Abspielknopf, originalen
+Filter-/Sortier-/Ansichtsmenues und funktionierendem Vor-/Zurueckblaettern.
+Alle Ziele passen bei 1920, 1280, 800, 390 und 320 Pixeln Breite in das Fenster.
+Keine Wiedergabe gestartet, keine Einstellungen auf dem Server geaendert.
+Die bestehenden Browser-, API-, TV-Identitaets- und Containerpruefungen laufen
+vor der Veroeffentlichung. Keine neue physische TV-Wiedergabepruefung.
 Eigener Testkandidat, keine offizielle Jellyfin-Veroeffentlichung.
