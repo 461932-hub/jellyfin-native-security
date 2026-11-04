@@ -46,7 +46,7 @@ if [ "$(id -u)" = 0 ]; then
         fi
     done
     exec setpriv --reuid "$task_uid" --regid "$task_gid" --groups "$task_groups" --no-new-privs \
-        flock --nonblock --no-fork --conflict-exit-code 75 /config/.jellyfin-native.lock \
+        flock --nonblock --no-fork --conflict-exit-code 75 /config/.native-server.lock \
         /usr/local/bin/jellyfin-native-start "$@"
 fi
 
@@ -55,4 +55,4 @@ if [ "$(id -u):$(id -g)" != "$task_uid:$task_gid" ]; then
     exit 1
 fi
 exec setpriv --no-new-privs flock --nonblock --no-fork --conflict-exit-code 75 \
-    /config/.jellyfin-native.lock /usr/local/bin/jellyfin-native-start "$@"
+    /config/.native-server.lock /usr/local/bin/jellyfin-native-start "$@"
