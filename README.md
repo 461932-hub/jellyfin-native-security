@@ -14,7 +14,7 @@ liegen unter `server/`; `SOURCE-PATCH.diff` zeigt die Aenderungen gegen
 ## Installation ueber CasaOS
 
 Nach einem erfolgreichen Lauf unter **Actions** steht das Image unter
-`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview20` bereit.
+`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview21` bereit.
 Der Kontoinhaber muss das GitHub-Containerpaket einmal unter **Packages ->
 jellyfin-native-security -> Package settings -> Change visibility -> Public**
 oeffentlich lesbar machen. Ein oeffentliches Repository allein aendert die
@@ -125,6 +125,15 @@ Symbole, Hinweise, Menues und deaktivierte Zustaende bleiben erhalten. Kleine
 Fenster behalten die native kompakte Darstellung und koennen die Gruppen
 bei Platzmangel umbrechen. Tastaturfokus bleibt sichtbar.
 
+Beim Blaettern mit Vorheriges/Naechstes bleibt ein bereits heruntergescrollter
+Katalog unter der nativen Kopfleiste. Auch verzoegerte native Scroll-Resets
+zeigen nicht erneut die grosse Vorschau. Die erste Reihe der neuen Seite wird
+sichtbar; bewusstes Scrollen, Beruehren oder eine Scrolltaste beenden die
+kurze Positionssicherung sofort. Bibliothekswechsel, Abmeldung und das Ende
+des Ladevorgangs raeumen sie ebenfalls auf. Die nativen Paging-Handler bleiben
+unveraendert. Eine spaeter eingebaute Liste erhaelt weiterhin die responsive
+Vorschauhoehe und den Uebergang per Mausrad.
+
 Die Benachrichtigungsglocke uebernimmt das Verhalten des Cinema-Headers:
 hoechstens fuenf neu hinzugefuegte Filme aus den letzten fuenf Tagen. Der rote
 Zaehler zeigt ungesehene Eintraege. Oeffnen markiert sie fuer das jeweilige
@@ -227,7 +236,7 @@ vorhandene TV-Direct-Play-Pfad wird nicht umgestellt.
 ## Build und Nachweise
 
 ```sh
-docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview20 .
+docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview21 .
 ```
 
 Der Build prueft die Quellpruefsummen, kompiliert die Linux-x64-Laufzeit und

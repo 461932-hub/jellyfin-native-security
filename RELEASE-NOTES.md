@@ -1,32 +1,33 @@
-Preview 20: grosse Vorschau frueher laden und Bilder priorisieren.
+Preview 21: beim Blaettern in der Filmliste bleiben.
 
-Die grosse Vorschau wartet bei Seitenwechseln nicht mehr auf die Zusatzdaten
-der Filmkacheln. Ihre Auswahl startet direkt, unabhaengig von deren Verarbeitung.
-Waehrenddessen reserviert ein passender Platzhalter den Bereich, damit das Raster
-nicht nachtraeglich nach unten springt. Beim Zurueckkehren werden bereits gepruefte
-Bibliothekskandidaten und geschuetzte Bilddaten weiterverwendet. Tagesauswahl,
-Vier-Sterne-Grenze und Bibliothekszuordnung bleiben erhalten.
+Wenn die grosse Vorschau bereits nach oben weggescrollt ist, zeigen die nativen
+Vorheriges-/Naechstes-Pfeile direkt die erste Reihe der neuen Katalogseite.
+Der native Sprung zum Dokumentanfang fuehrt nicht erneut zur Vorschau, auch
+bei verzoegertem Laden oder einem spaeten Scroll-Reset nach dem Rendern.
+Native Klick-Handler, Tastaturbedienung und deaktivierte Zustaende bleiben
+unveraendert. Seitennavigation bei sichtbarer Vorschau bleibt ebenfalls nativ.
 
-Grosses Bild und Logo erhalten hohe Ladeprioritaet. Der bestehende geschuetzte
-Bildadapter zieht wartende Bilder mit fetchpriority=high vor normale Cover vor.
-Bereits aktive Abrufe laufen weiter; hoechstens sechs sind gleichzeitig aktiv.
-Ein schon wartendes Bild kann ohne Doppelabruf hochgestuft werden. Anmeldung,
-Berechtigungen, gleicher Ursprung, Antwort-/Groessenpruefungen und Sitzungswechsel
-bleiben erhalten. Keine Zugangstokens in Bildadressen. Der aktualisierte eingebettete
-Bildadapter wird beim Docker-Start gegen seine Quelldatei verglichen.
+Bewusstes Scrollen, Beruehren oder Scrolltasten beenden die Positionssicherung.
+Hochscrollen kann damit weiterhin zur grossen Vorschau zurueckkehren. Laden,
+Bibliothekswechsel, Abmeldung und eine feste Zeitgrenze beenden die Sicherung;
+es wird weder eine neue Route noch ein anderes Benutzerkonto festgehalten.
+Dokument- und verschachtelte Seitenscroller sowie kurze letzte Seiten werden
+unterstuetzt. Spaet gemountete native Kataloge erhalten nun ebenfalls die
+responsive Vorschauhoehe und den bestehenden Uebergang per Mausrad.
 
 Vorhandene CasaOS-Test-App aktualisieren:
-ghcr.io/461932-hub/jellyfin-native-security:12.4-preview20
+ghcr.io/461932-hub/jellyfin-native-security:12.4-preview21
 Ports und Ordner beibehalten. Anschliessend Strg+F5.
 
-Pruefung: 174 Browserfaelle (90 Darstellung, 36 Glocke, 34 Tagesauswahl, 14 Ladefolge)
-fuer / und /media. Die neuen Faelle verwenden den echten geschuetzten Bildadapter:
-verzoegerte Auswahl, blockierte Kacheldaten, feste Platzhalterhoehe, Vorziehen des
-grossen Bildes, Prioritaetswechsel ohne Doppelabruf, Cache beim Zurueckkehren,
-Kontowechsel mit wartenden Bildern und weiterhin verweigerte Bildantworten.
-Lokale native Gegenmessung: erste grosse Vorschau ca. 807 -> 652 ms,
-beim erneuten Oeffnen ca. 499 -> 146 ms. Einzelne Diagnosemessungen im Heimnetz,
-keine allgemeine Ladezeitgarantie. Eigene Dateien nur im Diagnosebrowser; keine
-Wiedergabe gestartet oder Servereinstellungen geaendert. Alle 2673 Quellpruefsummen
-lokal geprueft. API-, TV- und Containerpruefungen vor Veroeffentlichung.
+Pruefung: 194 Browserfaelle (90 Darstellung, 36 Glocke, 34 Tagesauswahl,
+14 Ladefolge, 20 Katalog-Seitenwechsel) fuer / und /media. Die neuen Faelle
+pruefen sofortige und verzoegerte native Scroll-Resets, beide Richtungen,
+Tastatur, tieferes Scrollen, eine kurze letzte Seite, sichtbare Vorschau,
+Abbruch durch bewusste Eingabe, Route und Abmeldung, verschachtelte Scroller
+und die abgeschaltete Cinema-Darstellung. Zusaetzlich vier Pruefungen mit
+den echten nativen Pfeilen am LAN-Testserver: Vorwaerts und rueckwaerts kein
+Vorschaubild in den erfassten Frames; bewusste Rueckkehr per Mausrad moeglich.
+Eigene Webdateien dabei nur im Diagnosebrowser, keine Servereinstellungen
+geaendert oder Wiedergabe gestartet. API-, TV- und Containerpruefungen vor
+Veroeffentlichung. Keine neuen Medien-/Authentifizierungsregeln.
 Eigener Testkandidat, keine offizielle Jellyfin-Veroeffentlichung.

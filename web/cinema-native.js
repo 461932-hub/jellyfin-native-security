@@ -426,6 +426,8 @@
     function refreshFeatured() {
         const page = activePage(), auth = session();
         if (!auth || !page || !featuredContext(page) || document.hidden) return Promise.resolve();
+        // Native catalogues can mount after the independently loaded hero.
+        if (hero?.isConnected && page.contains(hero)) mountHeroSnap(page, hero);
         if (featured?.rendering) return featured.rendering;
         if (featured?.settled && featuredCurrent(featured) && featured.day === featuredDay().key && Date.now() < featured.nextAt) return Promise.resolve();
         const ownGeneration = generation, selection = dailyFeatured(page, auth), state = featured;
@@ -878,9 +880,11 @@
 
     function createHeroSnap({scroller,header,hero,getSection,enabled=()=>true,onSnap=()=>{},view=scroller.ownerDocument.defaultView}) {
       const DURATION=240, QUIET_GAP=150;
-      let dead=false,motion=null,frame=null,guard=false,lastCaptured=-Infinity;
+      let dead=false,motion=null,frame=null,guard=false,lastCaptured=-Infinity,paging=null,pagingFrame=null;
       const now=()=>view.performance.now();
-      function reset(){if(frame!==null)view.cancelAnimationFrame(frame);frame=null;motion=null;guard=false;}
+      function resetMotion(){if(frame!==null)view.cancelAnimationFrame(frame);frame=null;motion=null;guard=false;}
+      function cancelPaging(){if(pagingFrame!==null)view.cancelAnimationFrame(pagingFrame);pagingFrame=null;paging=null;}
+      function reset(){resetMotion();cancelPaging();}
       function geometry(){
         const section=getSection();if(!section||hero.hidden)return null;
         const target=scroller.scrollTop+section.getBoundingClientRect().top-scroller.getBoundingClientRect().top-header.getBoundingClientRect().height;
@@ -888,8 +892,33 @@
         return {section,target:Math.max(0,Math.min(maximum,target))};
       }
       function sync(){
+        if(paging&&enabled()){
+          const layout=geometry();
+          if(layout&&getSection()===paging.section&&Math.abs(scroller.scrollTop-layout.target)>1)scroller.scrollTop=layout.target;
+        }
         const layout=geometry();const show=!!getSection()&&(hero.hidden||!!layout&&layout.target>8&&scroller.scrollTop>=layout.target-2);
         scroller.classList.toggle('native-cinema-catalog-view',show);
+      }
+      function cardRange(section){
+        const cards=section.querySelectorAll('.card[data-id]');
+        return cards.length?cards.length+':'+cards[0].dataset.id+':'+cards[cards.length-1].dataset.id:'';
+      }
+      function holdCatalog(){
+        const layout=geometry();
+        if(dead||!enabled()||!layout||layout.target<8||scroller.scrollTop<layout.target-2)return;
+        reset();onSnap();
+        const entry={section:layout.section,range:cardRange(layout.section),deadline:now()+8000,settleAt:0};paging=entry;
+        function tick(){
+          pagingFrame=null;
+          if(paging!==entry)return;
+          if(dead||!enabled()||getSection()!==entry.section||now()>=entry.deadline){cancelPaging();return;}
+          const range=cardRange(entry.section);
+          if(range&&range!==entry.range&&!entry.settleAt)entry.settleAt=now()+120;
+          sync();
+          if(entry.settleAt&&now()>=entry.settleAt){cancelPaging();return;}
+          pagingFrame=view.requestAnimationFrame(tick);
+        }
+        sync();pagingFrame=view.requestAnimationFrame(tick);
       }
       function refresh(){
         const height=header.getBoundingClientRect().height||78;
@@ -914,6 +943,7 @@
         frame=view.requestAnimationFrame(tick);
       }
       function wheel(event){
+        if(event.deltaY||event.deltaX)cancelPaging();
         if(dead||event.defaultPrevented||event.ctrlKey||event.metaKey||event.shiftKey||!enabled()) {if(motion)reset();return;}
         if(Math.abs(event.deltaX)>=Math.abs(event.deltaY)||!event.deltaY)return;
         const path=event.composedPath?.()||[event.target];
@@ -935,13 +965,17 @@
       function resize(){
         const grid=scroller.classList.contains('native-cinema-catalog-view'),before=geometry();
         const offset=grid&&before?Math.max(0,scroller.scrollTop-before.target):0;
-        reset();refresh();
+        resetMotion();refresh();
         if(grid){const after=geometry();if(after)scroller.scrollTop=after.target+offset;}
         sync();
       }
       function visibility(){if(scroller.ownerDocument.hidden)reset();}
+      function interrupt(event){
+        if(event.type!=='keydown'||['ArrowUp','ArrowDown','PageUp','PageDown','Home','End',' '].includes(event.key))cancelPaging();
+      }
       scroller.addEventListener('wheel',wheel,{passive:false});scroller.addEventListener('scroll',sync,{passive:true});view.addEventListener('resize',resize);
       scroller.ownerDocument.addEventListener('visibilitychange',visibility);
+      for(const type of ['pointerdown','touchstart','keydown'])scroller.ownerDocument.addEventListener(type,interrupt,{capture:true,passive:true});
       const observer=view.ResizeObserver?new view.ResizeObserver(resize):null;observer?.observe(header);observer?.observe(scroller.element||scroller);refresh();
       function preserveCatalog(update){
         const before=geometry();const keep=enabled()&&before&&(scroller.scrollTop>=before.target-2||motion?.to===before.target);
@@ -949,7 +983,7 @@
         if(keep){const after=geometry();if(after){scroller.scrollTop=after.target;guard=true;lastCaptured=now();}}
         sync();
       }
-      return {refresh,reset,preserveCatalog,destroy(){if(dead)return;reset();dead=true;observer?.disconnect();scroller.removeEventListener('wheel',wheel);scroller.removeEventListener('scroll',sync);view.removeEventListener('resize',resize);scroller.ownerDocument.removeEventListener('visibilitychange',visibility);}};
+      return {refresh,reset,preserveCatalog,holdCatalog,destroy(){if(dead)return;reset();dead=true;observer?.disconnect();scroller.removeEventListener('wheel',wheel);scroller.removeEventListener('scroll',sync);view.removeEventListener('resize',resize);scroller.ownerDocument.removeEventListener('visibilitychange',visibility);for(const type of ['pointerdown','touchstart','keydown'])scroller.ownerDocument.removeEventListener(type,interrupt,true);}};
     }
 
     function destroyHeroSnap() {
@@ -995,6 +1029,18 @@
         const controller = createHeroSnap({ scroller, header, hero: node, getSection: () => catalog.isConnected ? catalog : null,
             enabled: () => node.isConnected && activePage() === page && !details && !document.hidden && !!session(), onSnap: () => hideHover() });
         heroSnap = { page, catalog, header, controller };
+    }
+
+    function catalogPageClick(event) {
+        if (event.defaultPrevented || event.button || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        const button = event.target.closest?.('button');
+        if (!button || button.disabled || button.getAttribute('aria-disabled') === 'true'
+            || !button.closest('header.MuiAppBar-root')
+            || !button.querySelector('svg[data-testid="NavigateBeforeIcon"],svg[data-testid="NavigateNextIcon"]')) return;
+        const page = activePage();
+        if (!featuredContext(page)?.parent || !hero?.isConnected || !page.contains(hero)) return;
+        mountHeroSnap(page, hero);
+        if (heroSnap?.page === page) heroSnap.controller.holdCatalog();
     }
 
     function showHero(page, card, item, ownGeneration, artwork = item) {
@@ -1124,6 +1170,7 @@
         document.addEventListener('pointermove', event => { lastPointer = { x: event.clientX, y: event.clientY, type: event.pointerType }; }, { passive: true });
         document.addEventListener('pointerout', pointerOut);
         document.addEventListener('click', cardClick, true);
+        document.addEventListener('click', catalogPageClick, true);
         document.addEventListener('keydown', event => { if (event.key === 'Escape') hideHover(); });
         window.addEventListener('resize', () => { hideHover(); positionNews(); });
         document.addEventListener('visibilitychange', () => { schedule(); if (news && !document.hidden) { renderNews(news); refreshNews(news); } });
