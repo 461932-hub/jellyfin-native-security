@@ -1555,7 +1555,7 @@
 +}
 --- /dev/null
 +++ b/Jellyfin.Api/Security/Web/image-client.js
-@@ -0,0 +1,166 @@
+@@ -0,0 +1,180 @@
 +/* Native Jellyfin media security preview 1: authenticate same-origin library images by header. */
 +(() => {
 +    'use strict';
@@ -1623,23 +1623,35 @@
 +    function pump() {
 +        while (active < 6 && queue.length) {
 +            const task = queue.shift(); active++;
-+            task().finally(() => { active--; pump(); });
++            task.run().finally(() => { active--; pump(); });
 +        }
 +    }
 +
-+    async function imageBlob(url, auth) {
++    function enqueue(task) {
++        const before = task.entry.priority === 'high' ? queue.findIndex(other => other.entry.priority !== 'high') : -1;
++        if (before < 0) queue.push(task); else queue.splice(before, 0, task);
++    }
++
++    async function imageBlob(url, auth, priority = 'auto') {
 +        reset(auth.key);
 +        const found = cache.get(url);
-+        if (found) { cache.delete(url); cache.set(url, found); return found.promise; }
++        if (found) {
++            if (priority === 'high' && found.priority !== 'high') {
++                found.priority = 'high';
++                const index = queue.indexOf(found.task);
++                if (index >= 0) { queue.splice(index, 1); enqueue(found.task); }
++            }
++            cache.delete(url); cache.set(url, found); return found.promise;
++        }
 +        if (queue.length >= 384) throw new Error('image queue full');
 +        const ownGeneration = generation;
-+        const entry = {};
++        const entry = { priority, task: null };
 +        entry.promise = new Promise((resolve, reject) => {
-+            queue.push(async () => {
++            const task = { entry, run: async () => {
 +                try {
 +                    if (ownGeneration !== generation) throw new Error('session changed');
 +                    const response = await nativeFetch(url, { headers: { Authorization: 'MediaBrowser Token="' + auth.token + '"' },
-+                        credentials: 'omit', redirect: 'error', cache: 'no-store', referrerPolicy: 'no-referrer' });
++                        credentials: 'omit', redirect: 'error', cache: 'no-store', referrerPolicy: 'no-referrer', priority: entry.priority });
 +                    if (!response.ok || !response.headers.get('Content-Type')?.toLowerCase().startsWith('image/')) throw new Error('image denied');
 +                    const reader = response.body.getReader(), chunks = []; let size = 0;
 +                    while (true) {
@@ -1652,7 +1664,9 @@
 +                    entry.size = size; entry.objectUrl = URL.createObjectURL(new Blob(chunks, { type: response.headers.get('Content-Type') }));
 +                    totalBytes += size; trim(); resolve(entry.objectUrl);
 +                } catch (error) { if (cache.get(url) === entry) cache.delete(url); reject(error); }
-+            });
++                finally { entry.task = null; }
++            } };
++            entry.task = task; enqueue(task);
 +            pump();
 +        });
 +        cache.set(url, entry);
@@ -1669,7 +1683,7 @@
 +        if (states.get(element) !== state) return;
 +        if (!auth) { element.dispatchEvent(new Event('error')); return; }
 +        try {
-+            const objectUrl = await imageBlob(url, auth);
++            const objectUrl = await imageBlob(url, auth, element.getAttribute('fetchpriority') === 'high' ? 'high' : 'auto');
 +            if (states.get(element) !== state || session()?.key !== auth.key) return;
 +            nativeSrc.set.call(element, objectUrl);
 +        } catch {
@@ -1701,7 +1715,7 @@
 +        const url = match && protectedUrl(match[1]);
 +        const auth = url && session();
 +        if (!auth) return;
-+        imageBlob(url, auth).then(objectUrl => {
++        imageBlob(url, auth, element.getAttribute('fetchpriority') === 'high' ? 'high' : 'auto').then(objectUrl => {
 +            if (element.style.backgroundImage === value && session()?.key === auth.key) element.style.backgroundImage = 'url("' + objectUrl + '")';
 +        }).catch(() => {});
 +    }

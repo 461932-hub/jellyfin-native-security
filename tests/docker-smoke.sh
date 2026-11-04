@@ -96,9 +96,9 @@ task_wait_ready() {
 }
 task_wait_ready
 curl --silent --fail --max-time 10 http://127.0.0.1:18099/web/index.html > /tmp/native-cinema-index.html
-grep -q 'cinema-boot.js?v=16' /tmp/native-cinema-index.html
-grep -q 'cinema-native.css?v=16' /tmp/native-cinema-index.html
-grep -q 'cinema-native.js?v=16' /tmp/native-cinema-index.html
+grep -q 'cinema-boot.js?v=17' /tmp/native-cinema-index.html
+grep -q 'cinema-native.css?v=17' /tmp/native-cinema-index.html
+grep -q 'cinema-native.js?v=17' /tmp/native-cinema-index.html
 curl --silent --fail --max-time 10 http://127.0.0.1:18099/web/cinema-boot.js > /tmp/native-cinema-boot.js
 cmp web/cinema-boot.js /tmp/native-cinema-boot.js
 curl --silent --fail --max-time 10 http://127.0.0.1:18099/web/cinema-native.js > /tmp/native-cinema-served.js
@@ -107,6 +107,8 @@ cmp web/cinema-native.js /tmp/native-cinema-served.js
 cmp web/cinema-native.css /tmp/native-cinema-served.css
 curl --silent --fail --max-time 10 http://127.0.0.1:18099/web/cinema-logo.png > /tmp/native-cinema-logo.png
 cmp web/cinema-logo.png /tmp/native-cinema-logo.png
+curl --silent --fail --max-time 10 http://127.0.0.1:18099/MediaSecurity/image-client.js > /tmp/native-image-client.js
+cmp server/Jellyfin.Api/Security/Web/image-client.js /tmp/native-image-client.js
 [[ $(docker exec --user 1000:1000 "$task_container" id -u) == 1000 ]]
 [[ $(stat -c '%u:%g' "$task_bind/config") == 1000:1000 ]]
 [[ $(stat -c '%u:%g' "$task_bind/cache") == 1000:1000 ]]

@@ -412,6 +412,36 @@
         return chooseFeatured(state, state.items);
     }
 
+    function featuredPlaceholder(page) {
+        if (hero?.isConnected) return;
+        const placeholder = element('section', 'native-cinema-featured-placeholder');
+        placeholder.dataset.nativeCinemaOwned = ''; placeholder.setAttribute('role', 'status');
+        placeholder.setAttribute('aria-label', 'Vorschau wird geladen');
+        const copy = element('div', 'native-cinema-featured-placeholder-copy'); copy.setAttribute('aria-hidden', 'true');
+        copy.append(element('span', ''), element('span', ''), element('span', '')); placeholder.append(copy);
+        (page.querySelector('#homeTab.is-active') || page).prepend(placeholder);
+        hero = placeholder; heroKey = 'loading:' + featuredContext(page)?.key;
+        mountHeroSnap(page, placeholder);
+    }
+    function refreshFeatured() {
+        const page = activePage(), auth = session();
+        if (!auth || !page || !featuredContext(page) || document.hidden) return Promise.resolve();
+        if (featured?.rendering) return featured.rendering;
+        if (featured?.settled && featuredCurrent(featured) && featured.day === featuredDay().key && Date.now() < featured.nextAt) return Promise.resolve();
+        const ownGeneration = generation, selection = dailyFeatured(page, auth), state = featured;
+        if (!state) return Promise.resolve();
+        if (state.loading && !hero?.isConnected) featuredPlaceholder(page);
+        const rendering = selection.then(item => {
+            if (!featuredCurrent(state) || generation !== ownGeneration) return;
+            if (item) showHero(page, currentCard(item.Id), item, ownGeneration);
+            else removeHero();
+            state.settled = true;
+        }).catch(() => { if (featuredCurrent(state)) removeHero(); }).finally(() => {
+            if (state.rendering === rendering) state.rendering = null;
+        });
+        state.rendering = rendering; return rendering;
+    }
+
     function currentCard(id, hint) {
         if (hint?.isConnected && hint.dataset.id === id) return hint;
         return [...(activePage()?.querySelectorAll('.card[data-id]') || [])].find(card => card.dataset.id === id);
@@ -976,10 +1006,12 @@
         section.dataset.nativeCinemaFeaturedId = item.Id;
         section.dataset.nativeCinemaFeaturedLibrary = featured?.context.parent || 'home';
         const image = element('img', 'native-cinema-hero-image'); image.alt = ''; image.setAttribute('aria-hidden', 'true');
+        image.setAttribute('fetchpriority', 'high'); image.decoding = 'async';
         const shade = element('div', 'native-cinema-hero-shade');
         const copy = element('div', 'native-cinema-hero-copy');
         const title = element('h1', 'native-cinema-hero-title', artwork.Name || '');
         const logo = element('img', 'native-cinema-hero-logo'); logo.alt = artwork.Name || ''; logo.hidden = true;
+        logo.setAttribute('fetchpriority', 'high');
         if (artwork.ImageTags?.Logo) {
             logo.onload = () => { if (generation === ownGeneration) { logo.hidden = false; title.hidden = true; } };
             logo.src = imageUrl(artwork, 'Logo', 800);
@@ -1041,20 +1073,24 @@
             // only uncached IDs, at most 24 at a time; cached cards must not crowd
             // later rows out of that request budget.
             const requested = [...new Set(cards.filter(visible).map(card => card.dataset.id))].slice(0, 128);
-            const [items, selected] = await Promise.all([metadata(requested, auth), dailyFeatured(page, auth)]);
+            const featuredReady = refreshFeatured();
+            const items = await metadata(requested, auth);
             if (generation !== ownGeneration || session()?.key !== auth.key || activePage() !== page
                 || (featuredContext(page)?.key || '') !== ownFeaturedContext) return;
             if (requested.some(id => !cache.has(id))) followup = true;
             for (const item of items) for (const card of cards) if (card.dataset.id === item.Id) enhanceCard(card, item, ownGeneration);
-            if (selected) showHero(page, currentCard(selected.Id), selected, ownGeneration);
-            else removeHero();
+            // On first startup keep the prepared-view gate, but do not delay
+            // the hero behind card metadata during normal page navigation.
+            if (root.classList.contains('native-cinema-boot')) await featuredReady;
+            if (generation !== ownGeneration || session()?.key !== auth.key || activePage() !== page
+                || (featuredContext(page)?.key || '') !== ownFeaturedContext) return;
             page.dataset.nativeCinemaInitialized = 'true';
             window.__nativeCinemaReady?.(); root.classList.remove('native-cinema-boot');
-        } catch { removeHero(); retryAfter = Date.now() + 5000; window.__nativeCinemaReady?.(); root.classList.remove('native-cinema-boot'); }
+        } catch { retryAfter = Date.now() + 5000; window.__nativeCinemaReady?.(); root.classList.remove('native-cinema-boot'); }
         finally { pending = false; if (followup) { followup = false; schedule(); } }
     }
 
-    function schedule() { window.__nativeCinemaRouteChanged?.(); reset(session()?.key || ''); syncNews(); syncFeaturedContext(); clearTimeout(timer); timer = setTimeout(refresh, 140); }
+    function schedule() { window.__nativeCinemaRouteChanged?.(); reset(session()?.key || ''); syncNews(); syncFeaturedContext(); void refreshFeatured(); clearTimeout(timer); timer = setTimeout(refresh, 140); }
     function scroll() {
         hideHover();
         clearTimeout(scrollHoverTimer);
@@ -1094,7 +1130,7 @@
         setInterval(() => {
             syncNews(); syncFeaturedContext();
             if ((session()?.key || '') !== sessionKey || featured && !document.hidden
-                && (featured.day !== featuredDay().key || Date.now() >= featured.nextAt) && !featured.loading) schedule();
+                && (featured.day !== featuredDay().key || Date.now() >= featured.nextAt) && !featured.rendering) schedule();
         }, 1200);
         schedule();
     }

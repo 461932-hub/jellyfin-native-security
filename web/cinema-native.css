@@ -205,6 +205,15 @@ html:not(.native-cinema-disabled) .native-cinema-news-copy small { font-size: 11
 html:not(.native-cinema-disabled) .native-cinema-news-empty { margin: 0; padding: 18px; color: #bbb; }
 
 /* Big still-image preview; no preview player, sound toggle or autoplay. */
+html:not(.native-cinema-disabled) .native-cinema-featured-placeholder {
+    position: relative; overflow: hidden; margin: 10px var(--cinema-pad) 10px;
+    height: calc(var(--native-cinema-viewport-height,100svh) - var(--native-cinema-header-height,70px) - 20px);
+    border-radius: 24px; background: linear-gradient(115deg,#252525,#1d1d1d);
+}
+html:not(.native-cinema-disabled) .native-cinema-featured-placeholder-copy { position: absolute; left: clamp(24px,3vw,50px); bottom: 45px; width: min(58%,500px); display: grid; gap: 16px; }
+html:not(.native-cinema-disabled) .native-cinema-featured-placeholder-copy span { display: block; height: 20px; width: 95%; border-radius: 8px; background: #ffffff10; }
+html:not(.native-cinema-disabled) .native-cinema-featured-placeholder-copy span:first-child { width: 70%; height: 55px; }
+html:not(.native-cinema-disabled) .native-cinema-featured-placeholder-copy span:last-child { width: 145px; height: 43px; border-radius: 24px; }
 html:not(.native-cinema-disabled) .native-cinema-hero {
     position: relative; isolation: isolate; overflow: hidden;
     margin: 10px var(--cinema-pad) 34px;
@@ -256,7 +265,7 @@ html:not(.native-cinema-disabled) .verticalSection { margin-bottom: 30px; }
 /* Library shortcuts already live in the header; omit My Media on Home. */
 html:not(.native-cinema-disabled) #homeTab .homeSectionsContainer > .verticalSection:has(.card[data-type="CollectionFolder"]) { display: none !important; }
 html:not(.native-cinema-disabled) .cardText bdi { display: block; overflow: hidden; text-overflow: ellipsis; }
-html:not(.native-cinema-disabled):not(.native-cinema-catalog-visible) .mainAnimatedPage:has(> .native-cinema-hero) .alphaPicker-fixed-right { visibility: hidden; }
+html:not(.native-cinema-disabled):not(.native-cinema-catalog-visible) .mainAnimatedPage:has(> :is(.native-cinema-hero,.native-cinema-featured-placeholder)) .alphaPicker-fixed-right { visibility: hidden; }
 html:not(.native-cinema-disabled) .alphaPicker-fixed-right :is(.MuiToggleButton-root.Mui-selected,.alphaPickerButton-selected) { background-color: #e50914 !important; color: #fff !important; font-weight: 700; }
 html:not(.native-cinema-disabled) .alphaPicker-fixed-right :is(.MuiToggleButton-root.Mui-selected,.alphaPickerButton-selected):hover { background-color: #b20710 !important; }
 
@@ -336,6 +345,7 @@ html:not(.native-cinema-disabled) .native-cinema-load-more { width: 100%; paddin
     html:not(.native-cinema-disabled) :is(#tvshowsPage,#moviesPage) :is(.card[data-native-cinema-wide],.card.backdropCard[data-type="Movie"],.card.backdropCard[data-type="Series"]) { width: 25%; }
 }
 @media(max-width:650px) {
+    html:not(.native-cinema-disabled) .native-cinema-featured-placeholder { border-radius: 18px; }
     .native-cinema-loading { inset: 64px 0 0; padding: 0 16px; }
     .native-cinema-loading-hero { min-height: 380px; height: min(620px,calc(100svh - 140px)); border-radius: 18px; }
     html:not(.native-cinema-disabled) .native-cinema-info { inset: 12px 0 auto; width: calc(100vw - 16px); max-height: calc(100svh - 24px); }

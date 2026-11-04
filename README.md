@@ -14,7 +14,7 @@ liegen unter `server/`; `SOURCE-PATCH.diff` zeigt die Aenderungen gegen
 ## Installation ueber CasaOS
 
 Nach einem erfolgreichen Lauf unter **Actions** steht das Image unter
-`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview19` bereit.
+`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview20` bereit.
 Der Kontoinhaber muss das GitHub-Containerpaket einmal unter **Packages ->
 jellyfin-native-security -> Package settings -> Change visibility -> Public**
 oeffentlich lesbar machen. Ein oeffentliches Repository allein aendert die
@@ -101,6 +101,16 @@ die ausgewaehlte Titel-ID und der juengste Hinzufuegezeitpunkt werden lokal,
 getrennt nach Server, Benutzer und Bibliothek, gespeichert. Keine Zugangstokens.
 Abspielen und Informationen nutzen weiterhin die vorhandenen nativen Aktionen,
 auch wenn die ausgewaehlte Kachel gerade nicht im sichtbaren Raster steht.
+
+Die grosse Vorschau wird unabhaengig von den Zusatzdaten der Kacheln aufgebaut.
+Ein gleich grosser Platzhalter reserviert den Bereich waehrend der Auswahl;
+das Raster springt dadurch nicht nachtraeglich nach unten. Bereits gepruefte
+Bibliothekskandidaten und geschuetzte Bilddaten werden beim Zurueckkehren genutzt.
+Das grosse Bild und sein Logo erhalten fetchpriority=high. Der vorhandene
+Bildadapter zieht solche wartenden Bilder vor normale Cover vor, behaelt aber
+hoechstens sechs aktive Abrufe und alle bisherigen Anmelde-, Ursprung-, Groessen-
+und Sitzungspruefungen. Ein bereits wartendes Bild kann ohne Doppelabruf hoch-
+gestuft werden. Beim ersten Appstart bleibt die vorbereitete Ladeansicht erhalten.
 
 Das Wortlogo verwendet das unveraenderte originale Cinema-Bild statt eines
 Schrift-Ersatzes. In der Verwaltungsuebersicht stehen dieses Logo und die
@@ -217,7 +227,7 @@ vorhandene TV-Direct-Play-Pfad wird nicht umgestellt.
 ## Build und Nachweise
 
 ```sh
-docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview19 .
+docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview20 .
 ```
 
 Der Build prueft die Quellpruefsummen, kompiliert die Linux-x64-Laufzeit und

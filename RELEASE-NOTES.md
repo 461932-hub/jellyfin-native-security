@@ -1,38 +1,32 @@
-Preview 19: taegliche Vier-Sterne-Auswahl fuer die grossen Vorschaubilder.
+Preview 20: grosse Vorschau frueher laden und Bilder priorisieren.
 
-Pro Tag ein Titel ab vier von fuenf Sternen. In Filme kommt er ausschliesslich
-aus der geoeffneten Filmbibliothek; in Serien aus der jeweiligen Serienbibliothek.
-Start kombiniert berechtigte Filme und Serien. Es wird nicht mehr einfach die
-erste Kachel verwendet. Der Titel bleibt beim Sortieren und Neuladen gleich.
-Am naechsten lokalen Kalendertag wird bei mehreren Kandidaten ein anderer
-gewaehlt. Es gibt keine zeitgesteuerte Diashow.
+Die grosse Vorschau wartet bei Seitenwechseln nicht mehr auf die Zusatzdaten
+der Filmkacheln. Ihre Auswahl startet direkt, unabhaengig von deren Verarbeitung.
+Waehrenddessen reserviert ein passender Platzhalter den Bereich, damit das Raster
+nicht nachtraeglich nach unten springt. Beim Zurueckkehren werden bereits gepruefte
+Bibliothekskandidaten und geschuetzte Bilddaten weiterverwendet. Tagesauswahl,
+Vier-Sterne-Grenze und Bibliothekszuordnung bleiben erhalten.
 
-Neu hinzugefuegte gut bewertete Titel werden bevorzugt. Sichtbare Seiten
-aktualisieren etwa minuetlich. Zwei begrenzte Anfragen verbinden bis zu 64
-bestbewertete mit bis zu 16 neuesten Titeln ab vier Sternen. Ohne geeigneten
-Titel bleibt der native Katalog verfuegbar; keine fremde Bibliothek oder
-schlechter bewertete Kachel dient als Ersatz. Abspielen und Mehr Infos bleiben
-an die nativen Aktionen gebunden, auch bei nicht sichtbarer Ausgangskachel.
-Die Bewertung wird als Sternezahl am grossen Bild angezeigt.
-
-Kandidaten und Anfragen bleiben an die aktuelle Anmeldung und Bibliothek
-gebunden. Alte Antworten nach Bibliotheks-/Kontowechsel werden verworfen;
-Abmeldung bereinigt alle Zusatzansichten gemeinsam. Nur Tageskennung,
-Titel-ID und juengster Hinzufuegezeitpunkt werden lokal pro Server/Benutzer/
-Bibliothek gespeichert. Keine Zugangstokens in URLs oder lokalen Einstellungen.
+Grosses Bild und Logo erhalten hohe Ladeprioritaet. Der bestehende geschuetzte
+Bildadapter zieht wartende Bilder mit fetchpriority=high vor normale Cover vor.
+Bereits aktive Abrufe laufen weiter; hoechstens sechs sind gleichzeitig aktiv.
+Ein schon wartendes Bild kann ohne Doppelabruf hochgestuft werden. Anmeldung,
+Berechtigungen, gleicher Ursprung, Antwort-/Groessenpruefungen und Sitzungswechsel
+bleiben erhalten. Keine Zugangstokens in Bildadressen. Der aktualisierte eingebettete
+Bildadapter wird beim Docker-Start gegen seine Quelldatei verglichen.
 
 Vorhandene CasaOS-Test-App aktualisieren:
-ghcr.io/461932-hub/jellyfin-native-security:12.4-preview19
+ghcr.io/461932-hub/jellyfin-native-security:12.4-preview20
 Ports und Ordner beibehalten. Anschliessend Strg+F5.
 
-Pruefung: 160 Browserfaelle (90 bisherige Oberflaeche, 36 Glocke, 34 neue
-Tagesauswahl) fuer / und /media. Einschliesslich Tageswechsel, stabile Auswahl,
-neuem Vier-Sterne-Titel neben 70 alten Fuenf-Sterne-Titeln, Bibliotheksgrenzen,
-Serien-/Filmunterscheidung, nativen Aktionen, fehlenden Bewertungen, abgewiesenem
-Zugriff, Kontowechsel mit echten Anfrageabbruechen und unveraenderter Scrollposition.
-Lokale native Oberflaeche: sechs Pruefungen bestanden; 30 geeignete Serien und
-24 Filme gefunden, gewaehlt wurden etwa 4,3 bzw. 4,2 Sterne. Bibliothekszuordnung,
-Infofenster und stabile Tagesauswahl unabhaengig gegen die API geprueft.
-Eigene Webdateien dabei nur im Diagnosebrowser. Keine Wiedergabe gestartet
-oder Servereinstellungen geaendert. API-, TV- und Containerpruefungen vor Release.
+Pruefung: 174 Browserfaelle (90 Darstellung, 36 Glocke, 34 Tagesauswahl, 14 Ladefolge)
+fuer / und /media. Die neuen Faelle verwenden den echten geschuetzten Bildadapter:
+verzoegerte Auswahl, blockierte Kacheldaten, feste Platzhalterhoehe, Vorziehen des
+grossen Bildes, Prioritaetswechsel ohne Doppelabruf, Cache beim Zurueckkehren,
+Kontowechsel mit wartenden Bildern und weiterhin verweigerte Bildantworten.
+Lokale native Gegenmessung: erste grosse Vorschau ca. 807 -> 652 ms,
+beim erneuten Oeffnen ca. 499 -> 146 ms. Einzelne Diagnosemessungen im Heimnetz,
+keine allgemeine Ladezeitgarantie. Eigene Dateien nur im Diagnosebrowser; keine
+Wiedergabe gestartet oder Servereinstellungen geaendert. Alle 2673 Quellpruefsummen
+lokal geprueft. API-, TV- und Containerpruefungen vor Veroeffentlichung.
 Eigener Testkandidat, keine offizielle Jellyfin-Veroeffentlichung.
