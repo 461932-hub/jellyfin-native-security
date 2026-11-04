@@ -14,7 +14,7 @@ liegen unter `server/`; `SOURCE-PATCH.diff` zeigt die Aenderungen gegen
 ## Installation ueber CasaOS
 
 Nach einem erfolgreichen Lauf unter **Actions** steht das Image unter
-`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview18` bereit.
+`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview19` bereit.
 Der Kontoinhaber muss das GitHub-Containerpaket einmal unter **Packages ->
 jellyfin-native-security -> Package settings -> Change visibility -> Public**
 oeffentlich lesbar machen. Ein oeffentliches Repository allein aendert die
@@ -80,6 +80,27 @@ Die obere Leiste ist am Seitenanfang transparent. Das rote Wortlogo, grosse
 Standbilder, breite Medienkarten, runde Auswahlflaechen und passende Menues
 lehnen sich an das Cinema-Projekt an. Vorschauen enthalten keine eigenen
 Videoelemente und keine Tonsteuerung.
+
+Das grosse Bild waehlt einen Titel pro lokalem Kalendertag mit mindestens
+vier von fuenf Sternen (Jellyfin CommunityRating >= 8). Filme stammen nur aus
+der geoeffneten Filmbibliothek; Serien nur aus der jeweiligen Serienbibliothek.
+Start darf die fuer den Benutzer verfuegbaren Filme und Serien kombinieren.
+Sortierung, Buchstabenfilter und Seitengroesse des nativen Rasters bestimmen
+nicht mehr das grosse Bild. Die Tagesauswahl bleibt beim Neuladen erhalten;
+am naechsten Tag wird bei mehreren geeigneten Titeln ein anderer gewaehlt.
+
+Neue gut bewertete Titel werden anhand von Jellyfins Hinzufuegedatum bevorzugt.
+Sichtbare Seiten aktualisieren den Kandidatenvorrat etwa minuetlich. Eine
+Anfrage liefert bis zu 64 bestbewertete Titel, eine zweite bis zu 16 neueste
+Titel ab vier Sternen. Dadurch kann auch ein neuer Acht-von-zehn-Titel neben
+vielen alten Zehnern erscheinen. Es gibt keine automatische Diashow. Ohne
+geeigneten Titel bleibt der native Katalog erhalten, ohne einen schlechter
+bewerteten oder fremden Titel einzusetzen. Bibliotheks-/Kontowechsel verwerfen
+alte Anfragen; abgewiesene Anfragen entfernen das grosse Bild. Nur der Tag,
+die ausgewaehlte Titel-ID und der juengste Hinzufuegezeitpunkt werden lokal,
+getrennt nach Server, Benutzer und Bibliothek, gespeichert. Keine Zugangstokens.
+Abspielen und Informationen nutzen weiterhin die vorhandenen nativen Aktionen,
+auch wenn die ausgewaehlte Kachel gerade nicht im sichtbaren Raster steht.
 
 Das Wortlogo verwendet das unveraenderte originale Cinema-Bild statt eines
 Schrift-Ersatzes. In der Verwaltungsuebersicht stehen dieses Logo und die
@@ -196,7 +217,7 @@ vorhandene TV-Direct-Play-Pfad wird nicht umgestellt.
 ## Build und Nachweise
 
 ```sh
-docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview18 .
+docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview19 .
 ```
 
 Der Build prueft die Quellpruefsummen, kompiliert die Linux-x64-Laufzeit und

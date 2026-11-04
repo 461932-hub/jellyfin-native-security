@@ -33,6 +33,8 @@
     let heroSnap = null;
     let details = null, detailsAbort = null, detailsTicket = 0;
     let news = null;
+    let featured = null;
+    const featuredPools = new Map();
 
     function session() {
         try {
@@ -48,6 +50,7 @@
     function reset(key) {
         if (key === sessionKey) return;
         sessionKey = key; generation++; retryAfter = 0;
+        destroyFeatured(); featuredPools.clear();
         if (news && news.key !== key) destroyNews();
         controller.abort(); controller = new AbortController(); cache.clear();
         hideHover(); closeDetails(false);
@@ -286,6 +289,129 @@
         }
     }
 
+    function featuredDay(now = new Date()) {
+        const year = now.getFullYear(), month = now.getMonth(), date = now.getDate();
+        return { key: year + '-' + String(month + 1).padStart(2, '0') + '-' + String(date).padStart(2, '0'),
+            index: Math.floor(Date.UTC(year, month, date) / 86400000), start: new Date(year, month, date).getTime() };
+    }
+    function featuredContext(page) {
+        if (!page) return null;
+        let route;
+        try { route = new URL(location.hash.slice(1) || '/', location.origin); } catch { return null; }
+        if (route.origin !== location.origin || (route.searchParams.get('tab') || '0') !== '0') return null;
+        if (page.id === 'indexPage' && page.querySelector('#homeTab.is-active') && ['/', '/home'].includes(route.pathname))
+            return { key: 'home', parent: '', types: 'Movie,Series' };
+        const type = page.id === 'moviesPage' && route.pathname === '/movies' ? 'Movie'
+            : page.id === 'tvshowsPage' && route.pathname === '/tv' ? 'Series' : null;
+        const parent = route.searchParams.get('topParentId') || route.searchParams.get('parentId');
+        if (!type || !validId(parent)) return null;
+        if (route.searchParams.has('topParentId') && route.searchParams.has('parentId') && route.searchParams.get('topParentId') !== route.searchParams.get('parentId')) return null;
+        return { key: type + ':' + parent, parent, types: type };
+    }
+    function removeHero() {
+        destroyHeroSnap(); hero?.remove(); hero = null; heroKey = '';
+    }
+    function destroyFeatured() {
+        if (featured) { featured.request?.abort(); featured = null; }
+        removeHero();
+    }
+    function featuredCurrent(state) {
+        return featured === state && session()?.key === state.auth.key && activePage() === state.page
+            && featuredContext(state.page)?.key === state.context.key;
+    }
+    function syncFeaturedContext() {
+        if (featured && !featuredCurrent(featured)) destroyFeatured();
+    }
+    function featuredRating(item) {
+        return typeof item.CommunityRating === 'number' && Number.isFinite(item.CommunityRating)
+            ? Math.min(5, Math.max(0, item.CommunityRating / 2)) : null;
+    }
+    function featuredItems(items, context) {
+        const found = new Map(), now = Date.now();
+        for (const item of items) {
+            const rating = item && featuredRating(item), created = item && Date.parse(item.DateCreated);
+            if (!item || !validId(item.Id) || !context.types.split(',').includes(item.Type) || item.IsVirtual === true
+                || item.IsVirtualItem === true || rating === null || rating < 4 || !Number.isFinite(created) || created > now
+                || !(item.ImageTags?.Thumb || item.ImageTags?.Primary || item.BackdropImageTags?.length)) continue;
+            found.set(item.Id, item);
+        }
+        return [...found.values()].slice(0, 80);
+    }
+    function chooseFeatured(state, items) {
+        if (!items.length) return null;
+        const day = featuredDay();
+        let record = null;
+        try {
+            const raw = localStorage.getItem(state.storageKey);
+            const value = raw && raw.length <= 1024 ? JSON.parse(raw) : null;
+            if (value && /^\d{4}-\d{2}-\d{2}$/.test(value.day) && validId(value.id)
+                && Number.isFinite(value.newestAt) && value.newestAt >= 0 && value.newestAt <= Date.now()) record = value;
+        } catch { /* A blocked or malformed preference cannot authorize a title. */ }
+        const newest = [...items].sort((a, b) => Date.parse(b.DateCreated) - Date.parse(a.DateCreated)
+            || featuredRating(b) - featuredRating(a) || a.Id.localeCompare(b.Id))[0];
+        const newestAt = Date.parse(newest.DateCreated);
+        let choice;
+        if (record && newestAt > record.newestAt || !record && newestAt >= day.start) choice = newest;
+        else if (record?.day === day.key) choice = items.find(item => item.Id === record.id);
+        if (!choice) {
+            let seed = 2166136261;
+            for (const ch of state.storageKey) seed = Math.imul(seed ^ ch.charCodeAt(0), 16777619) >>> 0;
+            const pool = [...items].sort((a, b) => a.Id.localeCompare(b.Id));
+            let index = (day.index + seed) % pool.length;
+            if (record && record.day !== day.key && pool.length > 1 && pool[index].Id === record.id) index = (index + 1) % pool.length;
+            choice = pool[index];
+        }
+        try { localStorage.setItem(state.storageKey, JSON.stringify({ day: day.key, id: choice.Id, newestAt })); } catch { /* Optional daily continuity. */ }
+        return choice;
+    }
+    async function dailyFeatured(page, auth) {
+        const context = featuredContext(page);
+        if (!context) { destroyFeatured(); return null; }
+        if (!featured || !featuredCurrent(featured)) {
+            destroyFeatured();
+            const server = window.ApiClient.serverId?.();
+            featured = { page, auth, context, request: null, loading: null, day: '', nextAt: 0, items: [],
+                storageKey: 'native-cinema-featured:' + (validId(server) ? server : base) + ':' + auth.user + ':' + context.key };
+        }
+        const state = featured, day = featuredDay();
+        const cached = featuredPools.get(context.key);
+        if (!state.items.length && cached && cached.day === day.key && Date.now() - cached.at < 60000) {
+            state.items = cached.items; state.day = cached.day; state.nextAt = cached.at + 60000;
+        }
+        if (!state.loading && (state.day !== day.key || Date.now() >= state.nextAt)) {
+            const request = new AbortController(); state.request = request; state.day = day.key;
+            const timeout = setTimeout(() => request.abort(), 12000);
+            state.loading = (async () => {
+                try {
+                    const query = { UserId: auth.user, Recursive: 'true', IncludeItemTypes: context.types,
+                        MinCommunityRating: '8', ExcludeLocationTypes: 'Virtual', Fields: 'DateCreated,Overview,Genres',
+                        EnableImageTypes: 'Primary,Backdrop,Thumb,Logo', ImageTypeLimit: '1', EnableUserData: 'false', EnableTotalRecordCount: 'false', SortOrder: 'Descending' };
+                    if (context.parent) query.ParentId = context.parent;
+                    // A bounded best-rated pool plus a small newest-rated pool:
+                    // a newly added four-star title must not be buried by older tens.
+                    const [best, latest] = await Promise.all([
+                        readJson('/Items?' + new URLSearchParams({ ...query, SortBy: 'CommunityRating,DateCreated', Limit: '64' }), auth, request.signal),
+                        readJson('/Items?' + new URLSearchParams({ ...query, SortBy: 'DateCreated', Limit: '16' }), auth, request.signal)
+                    ]);
+                    if (!featuredCurrent(state)) return;
+                    state.items = featuredItems([...(Array.isArray(latest.Items) ? latest.Items.slice(0, 16) : []),
+                        ...(Array.isArray(best.Items) ? best.Items.slice(0, 64) : [])], context);
+                    const at = Date.now(); featuredPools.set(context.key, { items: state.items, day: state.day, at });
+                    while (featuredPools.size > 6) featuredPools.delete(featuredPools.keys().next().value);
+                    state.nextAt = at + 60000;
+                } catch {
+                    if (featuredCurrent(state)) { state.items = []; state.nextAt = Date.now() + 60000; featuredPools.delete(context.key); }
+                } finally {
+                    clearTimeout(timeout); request.abort();
+                    if (state.request === request) { state.request = null; state.loading = null; }
+                }
+            })();
+        }
+        if (state.loading) await state.loading;
+        if (!featuredCurrent(state)) return null;
+        return chooseFeatured(state, state.items);
+    }
+
     function currentCard(id, hint) {
         if (hint?.isConnected && hint.dataset.id === id) return hint;
         return [...(activePage()?.querySelectorAll('.card[data-id]') || [])].find(card => card.dataset.id === id);
@@ -309,7 +435,7 @@
             const commandButton = document.createElement('button');
             commandButton.type = 'button'; commandButton.hidden = true; commandButton.className = 'itemAction';
             Object.assign(commandButton.dataset, { action: 'play', id: item.Id, serverid: serverId,
-                type: item.Type, mediatype: 'Video', isfolder: 'false', positionticks: '0' });
+                type: item.Type, mediatype: 'Video', isfolder: String(item.IsFolder === true || ['Series', 'Season'].includes(item.Type)), positionticks: '0' });
             context.append(commandButton);
             try {
                 const command = new CustomEvent('command', { bubbles: true, cancelable: true, detail: { command: 'play' } });
@@ -847,6 +973,8 @@
         destroyHeroSnap(); hero?.remove(); heroKey = key;
         const section = element('section', 'native-cinema-hero');
         section.dataset.nativeCinemaOwned = ''; section.setAttribute('aria-label', artwork.Name || 'Vorschau');
+        section.dataset.nativeCinemaFeaturedId = item.Id;
+        section.dataset.nativeCinemaFeaturedLibrary = featured?.context.parent || 'home';
         const image = element('img', 'native-cinema-hero-image'); image.alt = ''; image.setAttribute('aria-hidden', 'true');
         const shade = element('div', 'native-cinema-hero-shade');
         const copy = element('div', 'native-cinema-hero-copy');
@@ -856,27 +984,28 @@
             logo.onload = () => { if (generation === ownGeneration) { logo.hidden = false; title.hidden = true; } };
             logo.src = imageUrl(artwork, 'Logo', 800);
         }
-        const facts = [artwork.Genres?.slice(0, 2).join(' / '), artwork.ProductionYear, artwork.OfficialRating].filter(Boolean);
+        const rating = featuredRating(artwork);
+        const facts = [artwork.Genres?.slice(0, 2).join(' / '), artwork.ProductionYear, artwork.OfficialRating,
+            rating === null ? '' : '\u2605 ' + rating.toLocaleString('de-DE', { maximumFractionDigits: 1 }) + ' / 5'].filter(Boolean);
         const meta = element('div', 'native-cinema-hero-meta', facts.join('  ·  '));
         const text = element('p', 'native-cinema-hero-overview');
         // Metadata is text, never a second HTML document or remote resource.
         if (artwork.Overview) text.textContent = String(artwork.Overview).replace(/<[^>]*>/g, '');
         const actions = element('div', 'native-cinema-hero-actions');
-        const nativePlay = card.querySelector('button[data-action="play"],button[data-action="resume"]');
-        if (nativePlay) {
+        const nativePlay = card?.querySelector('button[data-action="play"],button[data-action="resume"]');
+        {
             const play = element('button', 'native-cinema-primary', '▶  Abspielen'); play.type = 'button';
-            play.disabled = nativePlay.disabled;
+            play.disabled = nativePlay?.disabled || false;
             play.addEventListener('click', () => {
                 if (ownGeneration !== generation || session()?.key !== sessionKey) return;
-                const current = [...page.querySelectorAll('.card[data-id]')].find(node => node.dataset.id === item.Id);
-                current?.querySelector('button[data-action="play"],button[data-action="resume"]')?.click();
+                playOriginal(item, currentCard(item.Id, card));
             });
             actions.append(play);
         }
-        const nativeLink = card.querySelector('a[href*="#/details?"]');
-        if (nativeLink) {
+        const nativeLink = card?.querySelector('a[href*="#/details?"]');
+        {
             const info = element('a', 'native-cinema-secondary', 'Mehr Infos');
-            info.href = nativeLink.getAttribute('href');
+            info.href = nativeLink?.getAttribute('href') || '#/details?id=' + encodeURIComponent(item.Id);
             info.addEventListener('click', event => {
                 if (event.button || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
                 event.preventDefault(); openDetails(item.Id, card, info);
@@ -904,34 +1033,28 @@
             if (!auth) { window.__nativeCinemaReady?.(); root.classList.remove('native-cinema-boot'); return; }
             if (Date.now() < retryAfter) return;
             const ownGeneration = generation;
+            const ownFeaturedContext = featuredContext(page)?.key || '';
             const cards = [...page.querySelectorAll('.card[data-id]')].filter(card =>
                 validId(card.dataset.id) && (['Movie', 'Series', 'Episode'].includes(card.dataset.type)
                     || (card.dataset.type === 'Season' && card.closest('#homeTab'))));
-            const eligible = ['indexPage', 'moviesPage', 'tvshowsPage'].includes(page.id)
-                && (!page.querySelector('#favoritesTab.is-active'));
-            const first = eligible ? cards.find(card => card.dataset.type !== 'Season') : null;
             // Bound the viewport work set below the cache size. metadata() requests
             // only uncached IDs, at most 24 at a time; cached cards must not crowd
             // later rows out of that request budget.
-            const requested = [...new Set([first?.dataset.id, ...cards.filter(visible).map(card => card.dataset.id)].filter(Boolean))].slice(0, 128);
-            const items = await metadata(requested, auth);
-            if (generation !== ownGeneration || session()?.key !== auth.key || activePage() !== page) return;
+            const requested = [...new Set(cards.filter(visible).map(card => card.dataset.id))].slice(0, 128);
+            const [items, selected] = await Promise.all([metadata(requested, auth), dailyFeatured(page, auth)]);
+            if (generation !== ownGeneration || session()?.key !== auth.key || activePage() !== page
+                || (featuredContext(page)?.key || '') !== ownFeaturedContext) return;
             if (requested.some(id => !cache.has(id))) followup = true;
             for (const item of items) for (const card of cards) if (card.dataset.id === item.Id) enhanceCard(card, item, ownGeneration);
-            if (first) {
-                const item = items.find(item => item.Id === first.dataset.id);
-                if (item) {
-                    const series = item.Type === 'Episode' && validId(item.SeriesId) ? (await metadata([item.SeriesId], auth))[0] : null;
-                    if (generation === ownGeneration && session()?.key === auth.key && activePage() === page) showHero(page, first, item, ownGeneration, series || item);
-                }
-            } else { destroyHeroSnap(); hero?.remove(); hero = null; heroKey = ''; }
+            if (selected) showHero(page, currentCard(selected.Id), selected, ownGeneration);
+            else removeHero();
             page.dataset.nativeCinemaInitialized = 'true';
             window.__nativeCinemaReady?.(); root.classList.remove('native-cinema-boot');
-        } catch { retryAfter = Date.now() + 5000; window.__nativeCinemaReady?.(); root.classList.remove('native-cinema-boot'); }
+        } catch { removeHero(); retryAfter = Date.now() + 5000; window.__nativeCinemaReady?.(); root.classList.remove('native-cinema-boot'); }
         finally { pending = false; if (followup) { followup = false; schedule(); } }
     }
 
-    function schedule() { window.__nativeCinemaRouteChanged?.(); syncNews(); clearTimeout(timer); timer = setTimeout(refresh, 140); }
+    function schedule() { window.__nativeCinemaRouteChanged?.(); reset(session()?.key || ''); syncNews(); syncFeaturedContext(); clearTimeout(timer); timer = setTimeout(refresh, 140); }
     function scroll() {
         hideHover();
         clearTimeout(scrollHoverTimer);
@@ -968,7 +1091,11 @@
         document.addEventListener('keydown', event => { if (event.key === 'Escape') hideHover(); });
         window.addEventListener('resize', () => { hideHover(); positionNews(); });
         document.addEventListener('visibilitychange', () => { schedule(); if (news && !document.hidden) { renderNews(news); refreshNews(news); } });
-        setInterval(() => { syncNews(); if ((session()?.key || '') !== sessionKey) schedule(); }, 1200);
+        setInterval(() => {
+            syncNews(); syncFeaturedContext();
+            if ((session()?.key || '') !== sessionKey || featured && !document.hidden
+                && (featured.day !== featuredDay().key || Date.now() >= featured.nextAt) && !featured.loading) schedule();
+        }, 1200);
         schedule();
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });

@@ -42,6 +42,15 @@ const note = name => { checks.push({ name, passed: true }); console.log('PASS ' 
             res.writeHead(200, { 'Content-Type': file.endsWith('.js') ? 'application/javascript; charset=utf-8' : 'text/css; charset=utf-8' });
             res.end(fs.readFileSync(path.join(assets, file))); return;
         }
+        if (url.pathname === base + '/Items' && url.searchParams.has('MinCommunityRating')) {
+            const permitted = fixtureMode === 'allowed' && req.headers.authorization === 'MediaBrowser Token="fixture-token"';
+            res.writeHead(permitted ? 200 : 403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ Items: permitted ? [{ Id: id, Name: 'Native fixture title',
+                Type: url.searchParams.get('IncludeItemTypes') === 'Series' ? 'Series' : 'Movie',
+                CommunityRating: 9, DateCreated: '2020-01-01T00:00:00Z',
+                Overview: '<img src="https://outside.invalid/leak" onerror="window.injected=1">Safe description',
+                ProductionYear: 2026, Genres: ['Drama'], ImageTags: { Thumb: 'fixture' }, BackdropImageTags: ['fixture'] }] : [] })); return;
+        }
         if (url.pathname.includes('/Users/') && url.pathname.endsWith('/Items')) {
             const permitted = fixtureMode === 'allowed' && req.headers.authorization === 'MediaBrowser Token="fixture-token"';
             res.writeHead(permitted ? 200 : 403, { 'Content-Type': 'application/json' });

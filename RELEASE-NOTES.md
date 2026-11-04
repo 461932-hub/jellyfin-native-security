@@ -1,32 +1,38 @@
-Preview 18: Benachrichtigungsglocke aus Cinema im nativen Header.
+Preview 19: taegliche Vier-Sterne-Auswahl fuer die grossen Vorschaubilder.
 
-Die Glocke zeigt bis zu fuenf neue Filme aus den letzten fuenf Tagen, mit
-Filmbild, Name und Zeitangabe. Der rote Zaehler steht fuer ungesehene Eintraege.
-Beim Oeffnen werden sie fuer das aktuelle Server-/Benutzerpaar als gesehen
-markiert. Ein Klick oeffnet das vorhandene Cinema-Infofenster. Neue Eintraege
-werden bei sichtbarem Client einmal pro Minute geladen. Originale SyncPlay-,
-Cast-, Such- und Kontoknoepfe bleiben erhalten.
+Pro Tag ein Titel ab vier von fuenf Sternen. In Filme kommt er ausschliesslich
+aus der geoeffneten Filmbibliothek; in Serien aus der jeweiligen Serienbibliothek.
+Start kombiniert berechtigte Filme und Serien. Es wird nicht mehr einfach die
+erste Kachel verwendet. Der Titel bleibt beim Sortieren und Neuladen gleich.
+Am naechsten lokalen Kalendertag wird bei mehreren Kandidaten ein anderer
+gewaehlt. Es gibt keine zeitgesteuerte Diashow.
 
-Nur gleiche Serveradresse und aktuelle Anmeldung. Kein Zugangstoken in Bild-
-oder Anfrageadressen. Anmeldung und Bibliotheksrechte bleiben erforderlich.
-Abmeldung und Kontowechsel entfernen Eintraege und brechen laufende Anfragen
-ab. Abgewiesene Anfragen leeren die Liste. Pro Glocke laeuft hoechstens eine
-Anfrage, mit 15 Sekunden Zeitlimit und mindestens fuenf Sekunden Abstand.
-Gespeichert wird nur der Gesehen-Zeitpunkt, getrennt nach Server und Benutzer.
-Originaldarstellung mit cinema=off schaltet auch die Glocke ab.
+Neu hinzugefuegte gut bewertete Titel werden bevorzugt. Sichtbare Seiten
+aktualisieren etwa minuetlich. Zwei begrenzte Anfragen verbinden bis zu 64
+bestbewertete mit bis zu 16 neuesten Titeln ab vier Sternen. Ohne geeigneten
+Titel bleibt der native Katalog verfuegbar; keine fremde Bibliothek oder
+schlechter bewertete Kachel dient als Ersatz. Abspielen und Mehr Infos bleiben
+an die nativen Aktionen gebunden, auch bei nicht sichtbarer Ausgangskachel.
+Die Bewertung wird als Sternezahl am grossen Bild angezeigt.
+
+Kandidaten und Anfragen bleiben an die aktuelle Anmeldung und Bibliothek
+gebunden. Alte Antworten nach Bibliotheks-/Kontowechsel werden verworfen;
+Abmeldung bereinigt alle Zusatzansichten gemeinsam. Nur Tageskennung,
+Titel-ID und juengster Hinzufuegezeitpunkt werden lokal pro Server/Benutzer/
+Bibliothek gespeichert. Keine Zugangstokens in URLs oder lokalen Einstellungen.
 
 Vorhandene CasaOS-Test-App aktualisieren:
-ghcr.io/461932-hub/jellyfin-native-security:12.4-preview18
+ghcr.io/461932-hub/jellyfin-native-security:12.4-preview19
 Ports und Ordner beibehalten. Anschliessend Strg+F5.
 
-Pruefung: 90 bestehende Browserfaelle und 36 neue Benachrichtigungsfaelle fuer
-/ und /media. Neu: Fuenf-Tage-Filter, Duplikate, ungueltige Daten, inerte Namen,
-Anfragegrenzen, Gesehen-Zaehler, Nachladen, Hintergrundpause, native Header-
-Wechsel, kleine Fenster, Kontowechsel, verweigerter Zugriff, Abmeldung mit
-laufender Anfrage, fremde API-Adressen und Originalmodus.
-Lokale native Oberflaeche: Glocke neben originalen Knoepfen, unabhaengiger
-API-Abgleich, Oeffnen/Schliessen und 390-Pixel-Fenster. Das verwendete Testkonto
-hat aktuell keine Filme im Fuenf-Tage-Zeitraum; der positive Fall ist isoliert
-geprueft. Keine Wiedergabe gestartet oder Servereinstellungen geaendert.
-Die API-, TV-Identitaets- und Containerpruefungen laufen vor Veroeffentlichung.
+Pruefung: 160 Browserfaelle (90 bisherige Oberflaeche, 36 Glocke, 34 neue
+Tagesauswahl) fuer / und /media. Einschliesslich Tageswechsel, stabile Auswahl,
+neuem Vier-Sterne-Titel neben 70 alten Fuenf-Sterne-Titeln, Bibliotheksgrenzen,
+Serien-/Filmunterscheidung, nativen Aktionen, fehlenden Bewertungen, abgewiesenem
+Zugriff, Kontowechsel mit echten Anfrageabbruechen und unveraenderter Scrollposition.
+Lokale native Oberflaeche: sechs Pruefungen bestanden; 30 geeignete Serien und
+24 Filme gefunden, gewaehlt wurden etwa 4,3 bzw. 4,2 Sterne. Bibliothekszuordnung,
+Infofenster und stabile Tagesauswahl unabhaengig gegen die API geprueft.
+Eigene Webdateien dabei nur im Diagnosebrowser. Keine Wiedergabe gestartet
+oder Servereinstellungen geaendert. API-, TV- und Containerpruefungen vor Release.
 Eigener Testkandidat, keine offizielle Jellyfin-Veroeffentlichung.
