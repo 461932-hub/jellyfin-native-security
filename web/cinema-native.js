@@ -1107,8 +1107,8 @@
         try {
             const auth = session(); reset(auth?.key || '');
             const page = activePage();
-            if (!page || document.hidden) return;
             if (!auth) { window.__nativeCinemaReady?.(); root.classList.remove('native-cinema-boot'); return; }
+            if (!page || document.hidden) return;
             if (Date.now() < retryAfter) return;
             const ownGeneration = generation;
             const ownFeaturedContext = featuredContext(page)?.key || '';

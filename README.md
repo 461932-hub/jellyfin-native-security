@@ -11,68 +11,63 @@ Jellyfin-Veroeffentlichung. Vollstaendige Quellen und die urspruengliche Lizenz
 liegen unter `server/`; `SOURCE-PATCH.diff` zeigt die Aenderungen gegen
 [Jellyfin v12.4](https://github.com/jellyfin/jellyfin/tree/v12.4).
 
-## Installation ueber CasaOS
+## Frische Installation oder Aktualisierung
 
-Nach einem erfolgreichen Lauf unter **Actions** steht das Image unter
-`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview21` bereit.
-Der Kontoinhaber muss das GitHub-Containerpaket einmal unter **Packages ->
-jellyfin-native-security -> Package settings -> Change visibility -> Public**
-oeffentlich lesbar machen. Ein oeffentliches Repository allein aendert die
-Paket-Sichtbarkeit nicht. Siehe [GitHub-Paketberechtigungen](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility).
+Die oeffentlichen Importvorlagen enthalten **keine eingerichtete Datenbank,
+keine Konten, keine Bibliotheken, keine persoenliche Serveradresse und keinen
+alten benutzerdefinierten CSS-Code**. Bei einem leeren eigenen Konfigurations-
+ordner startet der unveraenderte Jellyfin-Einrichtungsassistent. Bestehende Daten
+werden beim Aktualisieren bewusst weiterverwendet und nicht zurueckgesetzt.
 
-1. `CasaOS-Import.yaml` aus diesem Repository oder dem neuesten Release laden.
-2. In CasaOS **+ -> Benutzerdefinierte App installieren -> Importieren** oeffnen.
-3. Die YAML-Datei auswaehlen und die App **Jellyfin Sicherheitstest** installieren.
-4. `http://192.168.0.113:8099/web/` oeffnen und ein neues Testkonto anlegen.
-5. Zuerst einen kleinen Medienordner unter `/Media` oder `/HDD` hinzufuegen.
-6. Im Fire TV den Testserver `http://192.168.0.113:8099` hinzufuegen und einen
-   unterstuetzten Film in Originalqualitaet pruefen.
+Die Schritt-fuer-Schritt-Anleitung steht in [INSTALLATION.md](INSTALLATION.md).
+Das oeffentlich lesbare Image lautet
+`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview22` (Linux/amd64).
+Es ist ein Community-Testkandidat mit Cinema-Design und den bereits geprueften
+zusaetzlichen Anmelde-/Bibliothekspruefungen, keine offizielle Jellyfin-Ausgabe.
 
-Die Datei ist fuer diesen ausdruecklichen **HTTP-Test im Heimnetz** vorbereitet.
-Auch die normale Anmeldung laeuft dabei unverschluesselt. Fuer den spaeteren
-Domainbetrieb eine feste HTTPS-Basisadresse und den passenden Jellyfin-Basispfad
-konfigurieren sowie beide HTTP-Ausnahmen deaktivieren.
-
-Eigener Container: `jellyfin-native-security-test`, Port **8099**. Die bisherigen
-Container und ihre Einstellungen werden nicht eingebunden. Eigene
-Ordner auf dem CasaOS-Host speichern Konfiguration und Cache:
-
-| Zweck | Hostordner |
+| Datei | Zweck |
 | --- | --- |
-| Konfiguration und Datenbank | `/DATA/AppData/jellyfin-native-security-test/config` |
-| Cache | `/DATA/AppData/jellyfin-native-security-test/cache` |
+| `CasaOS-Import.yaml` | Intel-/AMD-Rendergeraet `/dev/dri`, HTTP, natives HTTPS und UDP-Ports |
+| `CasaOS-Import-CPU.yaml` | Gleiche Installation ohne vorausgesetztes Grafikgeraet |
+| `CasaOS-Import-Parallel.yaml` | Zusaetzliche Intel-/AMD-Installation mit eigenem freien HTTP-Port; keine belegten Zusatzports kopieren |
+| `compose.yaml` | Direkte Docker-Compose-Installation ohne CasaOS; CPU-Vorgabe, Projektname bestimmt die Datenordner |
 
-Preview 2 verwendet absolute Bind-Pfade, weil aeltere CasaOS-Importoberflaechen
-benannte Docker-Volumes als `[object Object]` uebernehmen. Die Portzuordnung
-lautet **Host 8099 -> Container 8096**. Ein eventuell noch offenes Formular mit
-falschen Werten schliessen und die neue Importdatei erneut laden.
+CasaOS vergibt bei einem **neuen Import** einen eigenen App-Namen. Die Vorlagen
+verwenden seine `$AppID` fuer getrennte `/config`- und `/cache`-Ordner und
+`$WEBUI_PORT` fuer einen freien HTTP-Port. Sie erzwingen weder denselben
+Container-Namen noch dieselbe feste CasaOS-ID. Zum **Aktualisieren** dagegen die
+vorhandene App bearbeiten und nur den Image-Tag aendern; nicht erneut importieren.
+Ein zweiter neuer Container verweigert ausserdem den gleichzeitigen Zugriff auf
+eine bereits von dieser Version gesperrte Konfiguration (Exitcode 75). Dieser
+zusaetzliche Lock ersetzt kein Backup und wirkt nicht gegen aeltere Server,
+die ihn noch nicht verwenden. Nie die Datenbank eines laufenden alten Servers teilen.
 
-Preview 3 korrigiert ausserdem den Android-TV-Geraetekontext: Die App verwendet
-nach der Anmeldung eine benutzerspezifische DeviceId, die von der urspruenglich
-beim Token gespeicherten Geraetekennung abweichen kann. Der begrenzte Direktstream
-uebernimmt jetzt die bei seiner Erstellung authentifizierte Kennung. Der native
-Server prueft weiterhin Sitzungstoken, Widerruf, Bibliotheksrechte und die Bindung
-an Film, Quelle und Wiedergabesitzung. Diese Korrektur verhindert den dadurch
-verursachten HTTP-401-Direktstartfehler und den anschliessenden Player-Fallback.
+PUID, PGID, TZ, Netzmodus, Portzuordnungen, Medienordner, Geraetefreigaben,
+Ressourcen, Neustartverhalten und Containerbefehl bleiben in CasaOS einstellbar.
+PUID/PGID muessen positive numerische IDs sein. Der Starthelfer initialisiert nur
+leere Mountwurzeln, ohne rekursive Besitzerwechsel. Danach startet der Server
+unter PUID/PGID ohne effektive Capabilities und mit `no-new-privileges`.
+Docker-Zusatzgruppen und Gruppen explizit durchgereichter `/dev/dri`-Geraete
+bleiben fuer Hardwarezugriff erhalten; Geraete- und Medienrechte werden nicht
+veraendert. Die CPU-Vorlage erfordert kein vorhandenes Rendergeraet. Einen echten
+GPU-/Codec-Nachweis muessen Betreiber auf ihrer Hardware fuehren.
 
-Bei `ContainerBitrateExceedsLimit` die maximale Streaming-Bitrate der TV-App
-beziehungsweise die gewaehlte Wiedergabequalitaet pruefen. Ein beispielsweise
-auf 2 Mbit/s begrenzter Client kann auch eine passende H264-Datei oberhalb dieses
-Limits absichtlich umwandeln lassen.
+`/Media` und `/HDD` sind wie bei ueblichen Originalvorlagen beschreibbar;
+Administratoren koennen sie in CasaOS schreibgeschuetzt einbinden. Die vorhandenen
+Jellyfin-Rechte entscheiden weiterhin ueber Benutzeraktionen. Ressourcen erhalten
+nur eine Speicherreservierung, kein festes Speichermaximum. Administratorseitige
+`.sh`-Dateien unter einem optionalen `/custom-cont-init.d`-Mount laufen unter der
+konfigurierten Benutzer-ID, nicht als root; LinuxServer-spezifische Root-Installations-
+skripte sind damit nicht automatisch kompatibel. Die Cinema-Dateien sind bereits
+im Image enthalten und brauchen keinen solchen Installationshook.
 
-Der kurze Starthelfer beginnt als root und setzt ausschliesslich die Besitzer
-leerer `/config`- und `/cache`-Mountwurzeln auf **1000:1000**. Er verweigert die
-automatische Aenderung fremder nichtleerer oder nicht lesbarer Verzeichnisse.
-Es gibt keinen rekursiven Besitzerwechsel. Danach startet `gosu` den Server
-als Benutzer 1000. Der laufende Server hat keine effektiven Linux-Capabilities
-und darf ueber `no-new-privileges` keine neuen Rechte erlangen. Der Starthelfer
-setzt diese Kernel-Einstellung auch selbst vor dem Programmstart. Fuer den
-Starthelfer sind im Container nur CHOWN, SETUID und SETGID freigegeben;
-das Container-Dateisystem bleibt schreibgeschuetzt. `/DATA/Media` und `/DATA/hdd`
-werden nur lesbar eingebunden. Die alten Medienzugriffsschutz-Plugins bitte
-aus diesem frischen Testcontainer heraushalten; sie koennten ihre bisherige
-Wiedergabeanpassung erneut anwenden. Cinema und Vorschlagsboard sind separate
-Erweiterungen. Seit Preview 5 startet Cinema direkt als Standardoberflaeche.
+Fuer Android TV 0.19.10 bleibt der bereits vorhandene begrenzte Direct-Play-Pfad
+erhalten. Seine vertrauenswuerdige Wiedergabe-Basisadresse muss der Betreiber
+selbst setzen. Die oeffentliche Vorlage aktiviert keine unverschluesselten
+TV-Ausnahmen. Das betrifft insbesondere alte Clients, die Bilder/Direct Play
+nicht mit einem Authentifizierungsheader anfordern. Details, ausdrueckliche
+LAN-Einrichtung und HTTPS/Proxy-Hinweise stehen in der Installationsanleitung.
+Die Medienanmeldung wird fuer Kompatibilitaet nicht abgeschaltet.
 
 ## Cinema-Design mit originalen Funktionen
 
@@ -236,7 +231,7 @@ vorhandene TV-Direct-Play-Pfad wird nicht umgestellt.
 ## Build und Nachweise
 
 ```sh
-docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview21 .
+docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview22 .
 ```
 
 Der Build prueft die Quellpruefsummen, kompiliert die Linux-x64-Laufzeit und

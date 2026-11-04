@@ -1,33 +1,45 @@
-Preview 21: beim Blaettern in der Filmliste bleiben.
+Preview 22: allgemeine Neuinstallation mit originalem Einrichtungsassistenten.
 
-Wenn die grosse Vorschau bereits nach oben weggescrollt ist, zeigen die nativen
-Vorheriges-/Naechstes-Pfeile direkt die erste Reihe der neuen Katalogseite.
-Der native Sprung zum Dokumentanfang fuehrt nicht erneut zur Vorschau, auch
-bei verzoegertem Laden oder einem spaeten Scroll-Reset nach dem Rendern.
-Native Klick-Handler, Tastaturbedienung und deaktivierte Zustaende bleiben
-unveraendert. Seitennavigation bei sichtbarer Vorschau bleibt ebenfalls nativ.
+Die CasaOS-Vorlagen enthalten keine feste private IP, keinen festen Testcontainer
+und keine Verknuepfung auf bereits eingerichtete Testdaten. Neue Importe erhalten
+von CasaOS eine eigene AppID, eigene Konfiguration und eigenen Cache. Updates
+erfolgen dagegen an der vorhandenen App und erhalten deren Daten. Im Image liegen
+keine eingerichteten Benutzer oder Bibliotheken. Die Ladeanzeige blockiert
+unangemeldete eigenstaendige Assistenten-/Anmeldeseiten nicht mehr.
 
-Bewusstes Scrollen, Beruehren oder Scrolltasten beenden die Positionssicherung.
-Hochscrollen kann damit weiterhin zur grossen Vorschau zurueckkehren. Laden,
-Bibliothekswechsel, Abmeldung und eine feste Zeitgrenze beenden die Sicherung;
-es wird weder eine neue Route noch ein anderes Benutzerkonto festgehalten.
-Dokument- und verschachtelte Seitenscroller sowie kurze letzte Seiten werden
-unterstuetzt. Spaet gemountete native Kataloge erhalten nun ebenfalls die
-responsive Vorschauhoehe und den bestehenden Uebergang per Mausrad.
+Der originale Jellyfin-Assistent wird im echten Browser gegen zwei leere
+Container durchlaufen: eigener Servername, Sprache, Benutzer samt Passwort,
+leere Bibliothek, Metadatenland/-sprache, Fernzugriff und Abschluss. Die zweite
+Instanz bleibt unabhaengig und unkonfiguriert. Nach einem Neustart bleibt die
+erste eingerichtet. Der Bericht und ein Bild der echten Startseite liegen bei.
 
-Vorhandene CasaOS-Test-App aktualisieren:
-ghcr.io/461932-hub/jellyfin-native-security:12.4-preview21
-Ports und Ordner beibehalten. Anschliessend Strg+F5.
+Wieder enthalten bzw. ergaenzt: PUID, PGID, TZ, HTTP-/HTTPS- sowie korrekte
+UDP-Ports, Medienordner, Intel-/AMD-Geraetefreigabe, Ressourcen und native
+Neustart-/Netzeinstellungen. CPU- und Parallelvorlagen ermoeglichen Rechner
+ohne /dev/dri bzw. weitere Instanzen ohne bereits belegte Zusatzports.
+PUID/PGID, Docker-Zusatzgruppen und Gruppen durchgereichter Rendergeraete
+werden beim Rechteabwurf korrekt uebernommen. Eigene optionale Startskripte
+laufen unter PUID/PGID. Keine root-Hooks, keine pauschalen Geraete-Rechteaenderungen.
+Ein Lock verweigert gleichzeitige Konfigurationsnutzung zwischen neuen Containern.
 
-Pruefung: 194 Browserfaelle (90 Darstellung, 36 Glocke, 34 Tagesauswahl,
-14 Ladefolge, 20 Katalog-Seitenwechsel) fuer / und /media. Die neuen Faelle
-pruefen sofortige und verzoegerte native Scroll-Resets, beide Richtungen,
-Tastatur, tieferes Scrollen, eine kurze letzte Seite, sichtbare Vorschau,
-Abbruch durch bewusste Eingabe, Route und Abmeldung, verschachtelte Scroller
-und die abgeschaltete Cinema-Darstellung. Zusaetzlich vier Pruefungen mit
-den echten nativen Pfeilen am LAN-Testserver: Vorwaerts und rueckwaerts kein
-Vorschaubild in den erfassten Frames; bewusste Rueckkehr per Mausrad moeglich.
-Eigene Webdateien dabei nur im Diagnosebrowser, keine Servereinstellungen
-geaendert oder Wiedergabe gestartet. API-, TV- und Containerpruefungen vor
-Veroeffentlichung. Keine neuen Medien-/Authentifizierungsregeln.
-Eigener Testkandidat, keine offizielle Jellyfin-Veroeffentlichung.
+Die bereits vorhandenen Sicherheitskorrekturen fuer Bilder/Videos und das
+Cinema-Design bleiben enthalten. Keine automatische Ableitung einer TV-
+Wiedergabeadresse aus Host-Headern. Betreiber tragen ihre eigene vertrauenswuerdige
+Adresse ein; unverschluesselte TV-Ausnahmen sind in den oeffentlichen Vorlagen aus.
+Normale native Menues, Bibliotheken, Player, Rechte und der Setup-Assistent
+werden nicht ersetzt. Medienordner koennen wie beim Original beschreibbar oder
+in CasaOS auf Wunsch schreibgeschuetzt eingebunden werden.
+
+Image: ghcr.io/461932-hub/jellyfin-native-security:12.4-preview22
+Neuinstallation: passende CasaOS-Datei aus diesem Release importieren.
+Update: vorhandene App behalten und nur Image-Tag aendern; vorher sichern.
+Anleitung: INSTALLATION.md. Keine Aenderungen an laufenden Nutzer-Servern.
+
+Pruefungen: 198 isolierte Cinema-Browserfaelle, 186 API-Tests, echter Docker-Start,
+7 TV-Identitaetsfaelle, 8 Compose-Modelle und zusaetzliche echte Erstinstallations-
+/Browserpruefungen. Hardwaregruppen werden mit einem kuenstlichen Character-Device
+getestet, nicht mit einer realen GPU. Kein Live-CasaOS-UI-, physischer Fire-TV-
+oder neuer Codec-Test dieses Releases. Linux/amd64; kein ARM-/Raspberry-Pi-Image.
+Community-Testkandidat, keine offizielle Jellyfin-Freigabe und keine pauschale
+Sicherheitsgarantie. Ein stabiler oeffentlicher Produktrelease braucht zusaetzlich
+reale Betreiber-/Hardwaretests.

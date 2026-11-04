@@ -1,0 +1,56 @@
+/* Drive the unchanged native wizard against fresh loopback CI servers only. */
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
+const {chromium}=require(process.env.NATIVE_CINEMA_PLAYWRIGHT||'playwright-core');
+const a='http://127.0.0.1:18098',b='http://127.0.0.1:18097',checks=[];
+let browser,context;
+const note=name=>{checks.push({name,passed:true});console.log('PASS '+name);};
+(async()=>{
+ browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',args:['--disable-background-networking']});
+ context=await browser.newContext({locale:'en-US',viewport:{width:1400,height:900}});
+ await context.route('**/*',r=>[a,b].includes(new URL(r.request().url()).origin)?r.continue():r.abort());
+ const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.name));
+ const infoA=await(await context.request.get(a+'/System/Info/Public')).json(),infoB=await(await context.request.get(b+'/System/Info/Public')).json();
+ assert.equal(infoA.StartupWizardCompleted,false);assert.equal(infoB.StartupWizardCompleted,false);assert.notEqual(infoA.Id,infoB.Id);
+ note('Two fresh containers have different server IDs and unfinished native setup');
+ await page.goto(a+'/web/');await page.locator('#wizardStartPage').waitFor({state:'visible'});
+ await page.waitForFunction(()=>!document.documentElement.classList.contains('native-cinema-boot')&&!document.querySelector('.native-cinema-loading'));
+ assert.equal(await page.locator('#wizardStartPage #txtServerName').isEditable(),true);
+ fs.mkdirSync(path.join(__dirname,'../test-results'),{recursive:true});
+ await page.screenshot({path:path.join(__dirname,'../test-results/wizard-start.png'),fullPage:true});
+ note('Opening /web/ automatically displays the original first-run wizard with no blocking Cinema overlay');
+ await page.locator('#txtServerName').fill('Independent CI server');await page.locator('#selectLocalizationLanguage').selectOption('en-US');
+ await page.locator('#wizardStartPage .button-submit').click();await page.locator('#wizardUserPage').waitFor({state:'visible'});
+ const username='Fresh CI admin',password='Wizard-'+crypto.randomBytes(24).toString('hex');
+ await page.locator('#txtUsername').fill(username);await page.locator('#txtManualPassword').fill(password);await page.locator('#txtPasswordConfirm').fill(password);
+ await page.locator('#wizardUserPage .button-submit').click();await page.locator('#wizardLibraryPage').waitFor({state:'visible'});
+ assert(await page.locator('#divVirtualFolders').isVisible());
+ note('The native user and library steps accept a new administrator and start without preset libraries');
+ await page.locator('#wizardLibraryPage .button-submit').click();await page.locator('#selectLanguage').waitFor({state:'visible'});
+ await page.locator('#selectLanguage').selectOption('en');await page.locator('#selectCountry').selectOption('US');
+ await page.locator('#wizardSettingsPage .button-submit').click();await page.locator('#chkRemoteAccess').waitFor({state:'visible'});
+ await page.locator('#chkRemoteAccess').uncheck();await page.locator('#wizardSettingsPage .button-submit').click();
+ await page.locator('#wizardFinishPage').waitFor({state:'visible'});await page.locator('#wizardFinishPage .btnWizardNext').click();
+ await page.waitForFunction(()=>!location.hash.includes('/wizard/'));
+ const configured=await(await context.request.get(a+'/System/Info/Public')).json();assert.equal(configured.StartupWizardCompleted,true);assert.equal(configured.ServerName,'Independent CI server');
+ assert.equal((await(await context.request.get(b+'/System/Info/Public')).json()).StartupWizardCompleted,false);
+ note('Language, country, remote access and Finish save through the original wizard; the second server stays unconfigured');
+ const login=await context.request.post(a+'/Users/AuthenticateByName',{data:{Username:username,Pw:password},headers:{Authorization:'MediaBrowser Client="CI setup", Device="Fixture", DeviceId="first-run-browser", Version="1.0"'}});
+ assert.equal(login.status(),200);const data=await login.json();
+ const auth={Authorization:'MediaBrowser Token="'+data.AccessToken+'"'};
+ try{
+  const libraries=await(await context.request.get(a+'/Library/VirtualFolders',{headers:auth})).json();assert.deepEqual(libraries,[]);
+  const users=await(await context.request.get(a+'/Users',{headers:auth})).json();assert.equal(users.length,1);assert.equal(users[0].Name,username);
+  assert.equal((await context.request.get(a+'/Startup/User')).status(),401);
+  assert.equal((await context.request.get(b+'/Startup/User')).status(),200);
+  const denied=await context.request.post(b+'/Users/AuthenticateByName',{data:{Username:username,Pw:password},headers:{Authorization:'MediaBrowser Client="CI setup", Device="Fixture", DeviceId="separate-instance", Version="1.0"'}});assert(denied.status()>=400);
+  note('The chosen administrator exists only in its own installation; original first-time setup closes after completion');
+ }finally{await context.request.post(a+'/Sessions/Logout',{headers:auth});}
+ const other=await browser.newContext();await other.route('**/*',r=>new URL(r.request().url()).origin===b?r.continue():r.abort());
+ const otherPage=await other.newPage();await otherPage.goto(b+'/web/index.html#/wizard/start');await otherPage.locator('#wizardStartPage').waitFor({state:'visible'});
+ await otherPage.waitForFunction(()=>!document.documentElement.classList.contains('native-cinema-boot'));
+ await other.close();assert.deepEqual(errors,[]);
+ note('A direct wizard link also works in a fresh browser without an existing login');
+ const folder=process.env.CINEMA_REPORT_DIR||path.join(__dirname,'../test-results');fs.mkdirSync(folder,{recursive:true});
+ fs.writeFileSync(path.join(folder,'first-run-browser.json'),JSON.stringify({passed:true,checks,scope:'Original Jellyfin wizard in Chromium against two fresh CI containers; real user creation, finish, login, isolated database and denied setup after completion; no real credentials or media'},null,2)+'\n');
+})().catch(error=>{console.error(error.name+': '+String(error.message).replace(/Wizard-[a-f0-9]+/g,'[redacted]'));process.exitCode=1;}).finally(async()=>{if(context)await context.close();if(browser)await browser.close();});
