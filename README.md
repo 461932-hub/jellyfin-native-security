@@ -21,7 +21,7 @@ werden beim Aktualisieren bewusst weiterverwendet und nicht zurueckgesetzt.
 
 Die Schritt-fuer-Schritt-Anleitung steht in [INSTALLATION.md](INSTALLATION.md).
 Das oeffentlich lesbare Image lautet
-`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview24` (Linux/amd64).
+`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview25` (Linux/amd64).
 Es ist ein Community-Testkandidat mit Cinema-Design und den bereits geprueften
 zusaetzlichen Anmelde-/Bibliothekspruefungen, keine offizielle Jellyfin-Ausgabe.
 
@@ -111,6 +111,11 @@ originalen Navigationslinks, Kachelraster, Filter und Wiedergabeaktionen bleiben
 zustaendig. Handy-Hochformat und Querformat werden in einem isolierten
 Chromium-Test mit Touch-Eingabe geprueft; ein physischer Handy-App-Test ist
 dadurch nicht ersetzt.
+Auf schmalen Handyansichten bis 650 CSS-Pixel stehen die originalen Film-,
+Serien-, Staffel- und Folgenkacheln in den Film-/Serienbibliotheken einzeln
+untereinander. Das gilt auch fuer dortige Medienreihen. Die grosse Vorschau,
+horizontale Startseiten-Reihen, explizite Listenansichten und das Raster auf
+groesseren Bildschirmen bleiben erhalten. Es wird nur die Anordnung geaendert.
 Das grosse Bild und sein Logo erhalten fetchpriority=high. Der vorhandene
 Bildadapter zieht solche wartenden Bilder vor normale Cover vor, behaelt aber
 hoechstens sechs aktive Abrufe und alle bisherigen Anmelde-, Ursprung-, Groessen-
@@ -241,7 +246,7 @@ vorhandene TV-Direct-Play-Pfad wird nicht umgestellt.
 ## Build und Nachweise
 
 ```sh
-docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview24 .
+docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview25 .
 ```
 
 Der Build prueft die Quellpruefsummen, kompiliert die Linux-x64-Laufzeit und
@@ -249,8 +254,9 @@ uebernimmt Webclient und FFmpeg aus dem fest auf Digest gebundenen offiziellen
 12.4-Image. Saemtliche zugehoerigen geaenderten Serverquellen sind ebenfalls
 im Image unter `/usr/share/jellyfin-native-source/` enthalten.
 
-Der GitHub-Build prueft 224 isolierte Cinema-Browserfaelle, davon 26 fuer
-mobile Seitenwechsel, sowie 186 API-Tests unter Linux. Dazu kommen die
+Der GitHub-Build prueft 232 isolierte Cinema-Browserfaelle, davon 34 fuer
+mobile Seitenwechsel und die Anordnung der Kacheln, sowie 186 API-Tests unter
+Linux. Dazu kommen die
 originalen Erstinstallations-/Browserpruefungen, acht Compose-Modelle und
 fuenf rohe CasaOS-Port-Importfaelle. Details und Grenzen stehen in den
 Pruefergebnissen des jeweiligen Releases; `PRUEFBERICHT.txt` und

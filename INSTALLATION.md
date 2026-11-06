@@ -49,11 +49,12 @@ Keine festen alten `container_name`, `x-casaos.id` oder Konfigurationspfade
 uebernehmen. Medienordner koennen bei passenden Berechtigungen geteilt werden.
 
 Zum **Aktualisieren** dagegen die vorhandene CasaOS-App bearbeiten: Image
-`ghcr.io/461932-hub/jellyfin-native-security`, Tag `12.4-preview24`.
+`ghcr.io/461932-hub/jellyfin-native-security`, Tag `12.4-preview25`.
 
-Preview24 aktualisiert die grosse Vorschau auch beim Wiedereroeffnen
-zwischengespeicherter Seiten auf Handys. Nach dem Image-Update die Handy-App
-vollstaendig schliessen und neu oeffnen. Bestehende Benutzer und Bibliotheken
+Preview25 ordnet Film- und Serienkacheln auf schmalen Handybildschirmen
+einzeln untereinander an. Die grosse Vorschau bleibt erhalten. Nach dem
+Image-Update die Handy-App vollstaendig schliessen und neu oeffnen.
+Bestehende Benutzer und Bibliotheken
 liegen weiterhin in den vorhandenen Datenordnern; zum Aktualisieren die
 bestehende CasaOS-App bearbeiten und nur den Image-Tag aendern.
 Vorhandene Namen, Ports, Ordner und eigene Einstellungen erhalten, danach

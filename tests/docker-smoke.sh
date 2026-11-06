@@ -96,9 +96,9 @@ task_wait_ready() {
 }
 task_wait_ready
 curl --silent --fail --max-time 10 http://127.0.0.1:18099/web/index.html > /tmp/native-cinema-index.html
-grep -q 'cinema-boot.js?v=20' /tmp/native-cinema-index.html
-grep -q 'cinema-native.css?v=20' /tmp/native-cinema-index.html
-grep -q 'cinema-native.js?v=20' /tmp/native-cinema-index.html
+grep -q 'cinema-boot.js?v=21' /tmp/native-cinema-index.html
+grep -q 'cinema-native.css?v=21' /tmp/native-cinema-index.html
+grep -q 'cinema-native.js?v=21' /tmp/native-cinema-index.html
 curl --silent --fail --max-time 10 http://127.0.0.1:18099/web/cinema-boot.js > /tmp/native-cinema-boot.js
 cmp web/cinema-boot.js /tmp/native-cinema-boot.js
 curl --silent --fail --max-time 10 http://127.0.0.1:18099/web/cinema-native.js > /tmp/native-cinema-served.js

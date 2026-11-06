@@ -81,6 +81,11 @@ const note = (name, base) => { checks.push({ name: name + ' at ' + (base || '/')
         await page.goto(origin + base + '/web/index.html#/home');
         await page.locator('#indexPage .native-cinema-hero').waitFor({ state: 'visible' });
         note('phone home keeps its full-height hero', base);
+        const homeCards = await page.locator('#homeTab .card').evaluateAll(nodes => nodes.map(node => {
+            const box = node.getBoundingClientRect(); return { x: box.x, y: box.y };
+        }));
+        assert.ok(Math.abs(homeCards[0].y - homeCards[1].y) < 2 && homeCards[1].x > homeCards[0].x, 'Home must keep its horizontal rails');
+        note('the Home layout keeps its horizontal rows', base);
         await page.tap('#movies');
         await page.locator('#moviesPage .native-cinema-hero').waitFor({ state: 'visible', timeout: 4500 });
         assert.equal(await page.locator('#moviesPage .native-cinema-hero').getAttribute('data-native-cinema-featured-id'), film.Id);
@@ -101,8 +106,38 @@ const note = (name, base) => { checks.push({ name: name + ' at ' + (base || '/')
         note('visibility-only cached page restoration also refreshes', base);
         const cards = await page.locator('#moviesPage .card').evaluateAll(nodes => nodes.map(node => { const box = node.getBoundingClientRect(); return { x: box.x, y: box.y, width: box.width }; }));
         assert.equal(cards.length, 2);
-        assert.ok(Math.abs(cards[0].y - cards[1].y) < 2 && cards[1].x > cards[0].x, 'native library grid must keep two columns on a phone');
-        note('library keeps its native two-column thumbnail grid', base);
+        assert.ok(cards[1].y > cards[0].y && Math.abs(cards[1].x - cards[0].x) < 2 && cards[0].width >= 340,
+            'phone library cards must stack one per row');
+        note('phone movie library stacks its original cards one per row', base);
+        for (const width of [320, 390]) {
+            await page.setViewportSize({ width, height: 780 });
+            const layout = await page.locator('#moviesPage > .itemsContainer > .card').evaluateAll(nodes => nodes.map(node => {
+                const rect = node.getBoundingClientRect(); return { x: rect.x, y: rect.y, right: rect.right, width: rect.width };
+            }));
+            assert.ok(layout[1].y > layout[0].y && layout.every(box => box.x >= 0 && box.right <= width + 1 && box.width >= width - 20));
+        }
+        await page.setViewportSize({ width: 360, height: 780 });
+        note('narrow and wider phone libraries fit without clipped neighbouring cards', base);
+        const otherLayouts = await page.evaluate(({ id }) => {
+            const library = document.getElementById('moviesPage');
+            const rail = document.createElement('section');
+            rail.innerHTML = `<div class="emby-scroller"><div class="itemsContainer" style="white-space:nowrap;flex-wrap:nowrap"><article class="card overflowBackdropCard" data-type="Movie" data-id="${id}" style="min-width:165px;margin-right:12px">First movie</article><article class="card overflowBackdropCard" data-type="Movie" data-id="${id}" style="min-width:165px;margin-right:12px">Second movie</article></div></div>`;
+            library.append(rail);
+            const cards = [...rail.querySelectorAll('.card')].map(node => node.getBoundingClientRect());
+            const stacked = cards[1].y > cards[0].y && cards.every(box => box.right <= innerWidth + 1);
+            const list = document.createElement('div'); list.className = 'itemsContainer vertical-list';
+            list.innerHTML = '<article class="card" data-type="Movie">List entry</article>';
+            library.append(list);
+            const listDirection = getComputedStyle(list).flexDirection;
+            const people = document.createElement('div'); people.className = 'itemsContainer';
+            people.innerHTML = '<article class="card" data-type="Person">Person</article><article class="card" data-type="Person">Person</article>';
+            library.append(people);
+            const peopleDirection = getComputedStyle(people).flexDirection;
+            rail.remove(); list.remove(); people.remove();
+            return { stacked, listDirection, peopleDirection };
+        }, { id: film.Id });
+        assert.deepEqual(otherLayouts, { stacked: true, listDirection: 'row', peopleDirection: 'row' });
+        note('library media rails stack while explicit list and people layouts stay native', base);
         await page.evaluate(() => {
             for (const node of document.querySelectorAll('.mainAnimatedPage')) {
                 node.style.display = node.id === 'moviesPage' ? 'block' : 'none';
@@ -115,6 +150,8 @@ const note = (name, base) => { checks.push({ name: name + ' at ' + (base || '/')
             for (const node of document.querySelectorAll('.mainAnimatedPage')) node.style.display = node.id === 'tvshowsPage' ? 'block' : 'none';
         }, { series });
         await page.locator('#tvshowsPage .native-cinema-hero').waitFor({ state: 'visible', timeout: 4500 });
+        const seriesRows = await page.locator('#tvshowsPage > .itemsContainer > .card').evaluateAll(nodes => nodes.map(node => node.offsetTop));
+        assert.ok(seriesRows[1] > seriesRows[0]);
         note('inline display restoration refreshes without replacing page children', base);
         await page.evaluate(() => {
             for (const node of document.querySelectorAll('.mainAnimatedPage')) {
@@ -148,6 +185,12 @@ const note = (name, base) => { checks.push({ name: name + ' at ' + (base || '/')
         const landscape = await page.locator('#moviesPage .native-cinema-hero').boundingBox();
         assert.ok(landscape.width <= 780 && landscape.height < 360, 'landscape hero must resize to the available viewport');
         note('phone rotation preserves the same library and responsive hero', base);
+        await page.setViewportSize({ width: 1440, height: 900 });
+        const desktop = await page.locator('#moviesPage > .itemsContainer > .card').evaluateAll(nodes => nodes.map(node => {
+            const box = node.getBoundingClientRect(); return { x: box.x, y: box.y, width: box.width };
+        }));
+        assert.ok(Math.abs(desktop[1].y - desktop[0].y) < 2 && desktop[1].x > desktop[0].x && desktop[0].width < 300);
+        note('desktop returns to the original multi-column library grid', base);
         assert.ok(requests.filter(request => request.path === base + '/Items' && new URLSearchParams(request.query).has('MinCommunityRating')).every(request => request.auth === 'MediaBrowser Token="mobile-fixture"'));
         assert.ok(requests.every(request => !/[?&](api_key|apikey|token)=/i.test(request.query)));
         assert.deepEqual(errors, []);

@@ -2,7 +2,7 @@
 # $AppID binds config/cache to that installation, not to a developer's test data.
 services:
   jellyfin:
-    image: ghcr.io/461932-hub/jellyfin-native-security:12.4-preview24
+    image: ghcr.io/461932-hub/jellyfin-native-security:12.4-preview25
     platform: linux/amd64
     user: "0:0"
     restart: unless-stopped
@@ -137,4 +137,4 @@ x-casaos:
   description:
     en_US: Jellyfin with Cinema presentation and additional media authentication. Original first-run wizard; no preset account or library. Intel/AMD render device required by this GPU template.
     de_DE: Jellyfin mit Cinema-Darstellung und zusaetzlicher Medienanmeldung. Originaler Einrichtungsassistent ohne vorgegebenes Konto oder Bibliothek. Diese GPU-Vorlage benoetigt ein Intel/AMD-Rendergeraet.
-  version: 12.4-preview24
+  version: 12.4-preview25
