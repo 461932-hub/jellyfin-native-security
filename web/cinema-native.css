@@ -345,6 +345,51 @@ html:not(.native-cinema-disabled) .native-cinema-load-more { width: 100%; paddin
     html:not(.native-cinema-disabled) :is(#tvshowsPage,#moviesPage) :is(.card[data-native-cinema-wide],.card.backdropCard[data-type="Movie"],.card.backdropCard[data-type="Series"]) { width: 25%; }
 }
 @media(max-width:650px) {
+    /* The phone app adds Back beside Menu. Reserve one compact row for all
+       seven actions, including the Cinema bell and the original user menu. */
+    html:not(.native-cinema-disabled) header.MuiAppBar-root > .MuiToolbar-root:first-child {
+        flex-wrap: nowrap; gap: 4px; padding: 6px 8px; min-height: 56px;
+    }
+    html:not(.native-cinema-disabled) header.MuiAppBar-root > .MuiToolbar-root:first-child .MuiIconButton-root,
+    html:not(.native-cinema-disabled) header.MuiAppBar-root > .MuiToolbar-root:first-child .native-cinema-news-button {
+        flex: 0 0 40px; width: 40px; min-width: 40px; height: 40px;
+        padding: 8px; margin: 0;
+    }
+    html:not(.native-cinema-disabled) header.MuiAppBar-root > .MuiToolbar-root:first-child .MuiAvatar-root {
+        width: 32px; height: 32px;
+    }
+    html:not(.native-cinema-disabled) header.MuiAppBar-root > .MuiToolbar-root:first-child > .MuiBox-root {
+        min-width: 0; flex-shrink: 0;
+    }
+    /* Keep the native title/count row followed by one complete controls row.
+       Override Stack's child margins as well as the desktop-sized spacing. */
+    html:not(.native-cinema-disabled) header.MuiAppBar-root > .MuiToolbar-root:has(> .MuiStack-root > .MuiButtonGroup-text) {
+        --native-cinema-mobile-tool-size: clamp(36px,12vw,44px);
+        padding: 4px 8px 8px; column-gap: 4px; row-gap: 4px;
+    }
+    html:not(.native-cinema-disabled) header.MuiAppBar-root > .MuiToolbar-root > .MuiStack-root:has(> .MuiButtonGroup-text) {
+        flex: 1 1 100%; flex-wrap: nowrap; justify-content: flex-end;
+        min-width: 0; max-width: 100%; column-gap: 4px; row-gap: 0;
+        margin-top: 4px; margin-bottom: 0;
+    }
+    html:not(.native-cinema-disabled) header.MuiAppBar-root > .MuiToolbar-root > .MuiStack-root:has(> .MuiButtonGroup-text) > * {
+        margin-inline: 0 !important;
+    }
+    html:not(.native-cinema-disabled) header.MuiAppBar-root > .MuiToolbar-root > .MuiStack-root:has(> .MuiButtonGroup-text) > .MuiBox-root {
+        min-width: 0;
+    }
+    html:not(.native-cinema-disabled) header.MuiAppBar-root > .MuiToolbar-root > .MuiStack-root .MuiButtonGroup-horizontal {
+        gap: 3px;
+    }
+    html:not(.native-cinema-disabled) header.MuiAppBar-root > .MuiToolbar-root > .MuiStack-root .MuiButtonGroup-contained {
+        gap: 0;
+    }
+    html:not(.native-cinema-disabled) header.MuiAppBar-root > .MuiToolbar-root > .MuiStack-root .MuiButtonGroup-horizontal > button.MuiButton-root {
+        height: var(--native-cinema-mobile-tool-size); min-width: var(--native-cinema-mobile-tool-size);
+    }
+    html:not(.native-cinema-disabled) header.MuiAppBar-root > .MuiToolbar-root > .MuiStack-root .MuiButtonGroup-root:has(svg[data-testid="NavigateNextIcon"]) {
+        padding-left: 5px; margin-left: 0;
+    }
     html:not(.native-cinema-disabled) .native-cinema-featured-placeholder { border-radius: 18px; }
     .native-cinema-loading { inset: 64px 0 0; padding: 0 16px; }
     .native-cinema-loading-hero { min-height: 380px; height: min(620px,calc(100svh - 140px)); border-radius: 18px; }
@@ -352,7 +397,6 @@ html:not(.native-cinema-disabled) .native-cinema-load-more { width: 100%; paddin
     html:not(.native-cinema-disabled) .native-cinema-info-copy { left: 24px; right: 24px; bottom: 16px; }
     html:not(.native-cinema-disabled) .native-cinema-info-logo { height: 80px; margin-bottom: 15px; }
     html:not(.native-cinema-disabled) .native-cinema-episode-image { width: 90px; }
-    html:not(.native-cinema-disabled) header.MuiAppBar-root > .MuiToolbar-root:first-child { min-height: 56px; padding: 8px 16px; }
     html:not(.native-cinema-disabled) .native-cinema-hero { min-height: 380px; height: min(620px,calc(100svh - 140px)); border-radius: 18px; margin: 10px 16px 28px; }
     html:not(.native-cinema-disabled) .native-cinema-hero-copy { width: auto; left: 22px; right: 22px; bottom: 28px; }
     html:not(.native-cinema-disabled) .native-cinema-hero-logo { height: 105px; width: 85%; }
@@ -371,6 +415,11 @@ html:not(.native-cinema-disabled) .native-cinema-load-more { width: 100%; paddin
         min-width: 0 !important; max-width: 100%; margin-inline: 0;
     }
     html:not(.native-cinema-disabled) .sectionTitle { font-size: 20px; }
+}
+@media(max-width:599px) {
+    html:not(.native-cinema-disabled) header.MuiAppBar-root > .MuiToolbar-root > .MuiStack-root .MuiButtonGroup-contained > button.MuiButton-root:first-child {
+        padding: 0;
+    }
 }
 @media(max-height:500px) {
     html:not(.native-cinema-disabled) .native-cinema-hero-page .native-cinema-hero-overview { display: none; }

@@ -21,7 +21,7 @@ werden beim Aktualisieren bewusst weiterverwendet und nicht zurueckgesetzt.
 
 Die Schritt-fuer-Schritt-Anleitung steht in [INSTALLATION.md](INSTALLATION.md).
 Das oeffentlich lesbare Image lautet
-`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview26` (Linux/amd64).
+`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview27` (Linux/amd64).
 Es ist ein Community-Testkandidat mit Cinema-Design und den bereits geprueften
 zusaetzlichen Anmelde-/Bibliothekspruefungen, keine offizielle Jellyfin-Ausgabe.
 
@@ -111,6 +111,14 @@ originalen Navigationslinks, Kachelraster, Filter und Wiedergabeaktionen bleiben
 zustaendig. Handy-Hochformat und Querformat werden in einem isolierten
 Chromium-Test mit Touch-Eingabe geprueft; ein physischer Handy-App-Test ist
 dadurch nicht ersetzt.
+Die obere Handy-Leiste beruecksichtigt die zusaetzliche Zurueck-Taste der App.
+Menue, Zurueck, Glocke, SyncPlay, Uebertragen, Suche und Profil bleiben in
+einer Zeile. Darunter stehen Bibliotheksname und Anzahl sowie eine eigene
+vollstaendige Zeile fuer Abspielen/Zufall, Filter, Sortierung, Ansicht und
+die Blaettertasten. Die originale Stack-Struktur und ihre nativen Aktionen
+bleiben bestehen. Die echte React/MUI-Oberflaeche wird zusaetzlich auf einer
+frischen Docker-Testinstanz bei 320/360/390 Pixeln mit nachgestelltem
+NativeShell-Merkmal und weiterhin bedienbarem Profilmenue geprueft.
 Auf schmalen Handyansichten bis 650 CSS-Pixel stehen die originalen Film-,
 Serien-, Staffel- und Folgenkacheln in den Film-/Serienbibliotheken
 zu zweit nebeneinander, weitere darunter. Das gilt auch fuer Medienreihen.
@@ -246,7 +254,7 @@ vorhandene TV-Direct-Play-Pfad wird nicht umgestellt.
 ## Build und Nachweise
 
 ```sh
-docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview26 .
+docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview27 .
 ```
 
 Der Build prueft die Quellpruefsummen, kompiliert die Linux-x64-Laufzeit und
@@ -254,8 +262,9 @@ uebernimmt Webclient und FFmpeg aus dem fest auf Digest gebundenen offiziellen
 12.4-Image. Saemtliche zugehoerigen geaenderten Serverquellen sind ebenfalls
 im Image unter `/usr/share/jellyfin-native-source/` enthalten.
 
-Der GitHub-Build prueft 232 isolierte Cinema-Browserfaelle, davon 34 fuer
-mobile Seitenwechsel und die Anordnung der Kacheln, sowie 186 API-Tests unter
+Der GitHub-Build prueft 260 isolierte Cinema-Browserfaelle, davon 34 fuer
+mobile Seitenwechsel und Kacheln sowie 28 fuer die originalgetreue
+Kopf-/Werkzeugleistenstruktur. Dazu kommen 186 API-Tests unter
 Linux. Dazu kommen die
 originalen Erstinstallations-/Browserpruefungen, acht Compose-Modelle und
 fuenf rohe CasaOS-Port-Importfaelle. Details und Grenzen stehen in den

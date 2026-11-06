@@ -54,6 +54,43 @@ const note=name=>{checks.push({name,passed:true});console.log('PASS '+name);};
   assert.equal((await context.request.get(b+'/Startup/User')).status(),200);
   const denied=await context.request.post(b+'/Users/AuthenticateByName',{data:{Username:username,Pw:password},headers:{Authorization:'MediaBrowser Client="CI setup", Device="Fixture", DeviceId="separate-instance", Version="1.0"'}});assert(denied.status()>=400);
   note('The chosen administrator exists only in its own installation; original first-time setup closes after completion');
+  // Exercise the actual React/MUI header from the image. NativeShell is
+  // enabled only after ordinary login to model the app-only Back affordance;
+  // no physical Android bridge or player is claimed by this check.
+  const mobile=await browser.newContext({locale:'en-US',viewport:{width:360,height:780},isMobile:true,hasTouch:true});
+  await mobile.route('**/*',r=>new URL(r.request().url()).origin===a?r.continue():r.abort());
+  const phone=await mobile.newPage(),phoneErrors=[];phone.on('pageerror',e=>phoneErrors.push(e.name));let phoneToken;
+  try{
+   await phone.goto(a+'/web/index.html#/login');
+   const manual=phone.getByText(/^(Manual Login|Sign in manually)$/i).first();
+   const name=phone.locator('input[autocomplete="username"],#txtManualName,input[name="Username"]').first();
+   await Promise.race([manual.waitFor({state:'visible'}),name.waitFor({state:'visible'})]);
+   if(await manual.isVisible().catch(()=>false))await manual.click();
+   await name.fill(username);const pw=phone.locator('input[type="password"]').first();await pw.fill(password);await pw.press('Enter');
+   await phone.locator('button[aria-controls="app-user-menu"]').waitFor({state:'visible'});
+   phoneToken=await phone.evaluate(()=>window.ApiClient.accessToken());
+   await phone.evaluate(()=>{window.NativeShell=window.NativeShell||{};location.hash='/movies?collectionType=movies';});
+   await phone.locator('header .MuiToolbar-root:first-child svg[data-testid="ArrowBackIcon"]').waitFor({state:'visible'});
+   await phone.locator('header .native-cinema-news-button').waitFor({state:'visible'});
+   await phone.locator('header .MuiStack-root .MuiButtonGroup-contained').waitFor({state:'visible'});
+   for(const width of [320,360,390]){
+    await phone.setViewportSize({width,height:780});await phone.waitForTimeout(150);
+    const top=await phone.locator('header.MuiAppBar-root > .MuiToolbar-root:first-child button').evaluateAll(nodes=>nodes.filter(n=>n.getBoundingClientRect().width>0).map(n=>{const r=n.getBoundingClientRect();return{x:r.x,right:r.right,y:r.y+r.height/2};}));
+    assert.equal(top.length,7,'Actual app header includes Menu, Back, bell, SyncPlay, cast, search and profile');
+    assert.ok(top.every(r=>r.x>=0&&r.right<=width+1&&Math.abs(r.y-top[0].y)<2),'Actual React topbar must keep every action in one line');
+    const tools=await phone.locator('header .MuiStack-root .MuiButtonGroup-root > button').evaluateAll(nodes=>nodes.filter(n=>n.getBoundingClientRect().width>0).map(n=>{const r=n.getBoundingClientRect();return{x:r.x,right:r.right,y:r.y+r.height/2};}));
+    assert.equal(tools.length,7,'Actual native library renders play/shuffle, filter/sort/view and both page buttons');
+    assert.ok(tools.every(r=>r.x>=0&&r.right<=width+1&&Math.abs(r.y-tools[0].y)<2),'Actual native library controls must fit one complete row');
+   }
+   note('Actual image React/MUI header fits app-only Back, bell, profile and all seven library controls at 320/360/390px');
+   await phone.setViewportSize({width:360,height:780});
+   await phone.screenshot({path:path.join(__dirname,'../test-results/native-header-mobile.png')});
+   await phone.locator('button[aria-controls="app-user-menu"]').click();
+   await phone.locator('#app-user-menu [role="menu"]').waitFor({state:'visible'});
+   await phone.keyboard.press('Escape');
+   assert.deepEqual(phoneErrors,[]);
+   note('Actual native profile menu still opens from the compact mobile header');
+  }finally{if(phoneToken)await mobile.request.post(a+'/Sessions/Logout',{headers:{Authorization:'MediaBrowser Token="'+phoneToken+'"'}});await mobile.close();}
  }finally{await context.request.post(a+'/Sessions/Logout',{headers:auth});}
  const other=await browser.newContext();await other.route('**/*',r=>new URL(r.request().url()).origin===b?r.continue():r.abort());
  const otherPage=await other.newPage();await otherPage.goto(b+'/web/index.html#/wizard/start');await otherPage.locator('#wizardStartPage').waitFor({state:'visible'});

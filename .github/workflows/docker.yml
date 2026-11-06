@@ -16,7 +16,7 @@ jobs:
       packages: write
     env:
       IMAGE: ghcr.io/${{ github.repository }}
-      VERSION: 12.4-preview26
+      VERSION: 12.4-preview27
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -45,6 +45,8 @@ jobs:
             CHROME_PATH="$(command -v google-chrome)" node tests/cinema-pagination.cjs
           NATIVE_CINEMA_PLAYWRIGHT=/tmp/native-cinema-browser/node_modules/playwright-core \
             CHROME_PATH="$(command -v google-chrome)" node tests/cinema-mobile.cjs
+          NATIVE_CINEMA_PLAYWRIGHT=/tmp/native-cinema-browser/node_modules/playwright-core \
+            CHROME_PATH="$(command -v google-chrome)" node tests/cinema-header.cjs
           NATIVE_CINEMA_PLAYWRIGHT=/tmp/native-cinema-browser/node_modules/playwright-core \
             CHROME_PATH="$(command -v google-chrome)" node tests/cinema-startup.cjs
       - name: Run API regression tests
@@ -81,10 +83,10 @@ jobs:
         run: |
           if gh release view "$VERSION" >/dev/null 2>&1; then
             gh release upload "$VERSION" CasaOS-Import.yaml CasaOS-Import-CPU.yaml CasaOS-Import-Parallel.yaml compose.yaml INSTALLATION.md image-digest.txt \
-              test-results/docker-smoke.json test-results/tv-device-identity.json test-results/cinema-browser.json test-results/cinema-news.json test-results/cinema-featured.json test-results/cinema-loading.json test-results/cinema-pagination.json test-results/cinema-mobile.json test-results/cinema-startup.json test-results/casaos-import.json test-results/casaos-port-import.json test-results/wizard-start.png test-results/public-install.json test-results/first-run-browser.json test-results/api-linux.trx --clobber
+              test-results/docker-smoke.json test-results/tv-device-identity.json test-results/cinema-browser.json test-results/cinema-news.json test-results/cinema-featured.json test-results/cinema-loading.json test-results/cinema-pagination.json test-results/cinema-mobile.json test-results/cinema-header.json test-results/native-header-mobile.png test-results/cinema-startup.json test-results/casaos-import.json test-results/casaos-port-import.json test-results/wizard-start.png test-results/public-install.json test-results/first-run-browser.json test-results/api-linux.trx --clobber
           else
             gh release create "$VERSION" --target "$GITHUB_SHA" --prerelease \
-              --title 'Jellyfin Cinema 12.4 - two-column phone libraries' \
+              --title 'Jellyfin Cinema 12.4 - compact native mobile header' \
               --notes-file RELEASE-NOTES.md CasaOS-Import.yaml CasaOS-Import-CPU.yaml CasaOS-Import-Parallel.yaml compose.yaml INSTALLATION.md image-digest.txt \
-              test-results/docker-smoke.json test-results/tv-device-identity.json test-results/cinema-browser.json test-results/cinema-news.json test-results/cinema-featured.json test-results/cinema-loading.json test-results/cinema-pagination.json test-results/cinema-mobile.json test-results/cinema-startup.json test-results/casaos-import.json test-results/casaos-port-import.json test-results/wizard-start.png test-results/public-install.json test-results/first-run-browser.json test-results/api-linux.trx
+              test-results/docker-smoke.json test-results/tv-device-identity.json test-results/cinema-browser.json test-results/cinema-news.json test-results/cinema-featured.json test-results/cinema-loading.json test-results/cinema-pagination.json test-results/cinema-mobile.json test-results/cinema-header.json test-results/native-header-mobile.png test-results/cinema-startup.json test-results/casaos-import.json test-results/casaos-port-import.json test-results/wizard-start.png test-results/public-install.json test-results/first-run-browser.json test-results/api-linux.trx
           fi

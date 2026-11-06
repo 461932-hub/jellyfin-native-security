@@ -1,31 +1,38 @@
-Preview 26: Zwei Kacheln nebeneinander auf dem Handy.
+Preview 27: Kompakte Kopf- und Werkzeugleisten in der Handy-App.
 
-Film- und Serienbibliotheken zeigen auf schmalen Bildschirmen bis 650 CSS-Pixel
-zwei Medienkacheln pro Zeile. Weitere Kacheln folgen darunter. Beide Spalten
-teilen sich die verfuegbare Breite; die Kacheln werden nicht seitlich abgeschnitten.
-Das gilt auch fuer Medienreihen innerhalb dieser Bibliotheken.
-Preview25 hatte aufgrund einer noch offenen Rueckfrage eine Kachel pro Zeile
-verwendet. Dieses Update setzt die inzwischen bestaetigte Zweispaltenauswahl um.
+Die obere Leiste beruecksichtigt die app-eigene Zurueck-Taste. Zusammen mit
+Menue, Glocke, SyncPlay, Uebertragen, Suche und Profil passt sie bei schmalen
+Ansichten in eine Zeile. Der Profilknopf bricht nicht mehr alleine nach unten um.
+Unter Bibliotheksname und Anzahl bleibt eine vollstaendige Werkzeugzeile fuer
+Abspielen/Zufall, Filter, Sortierung, Ansicht und beide Blaettertasten.
 
-Die grosse Vorschau behaelt ihr bisheriges Aussehen. Startseiten-Reihen,
-explizite Listenansichten, Personenkacheln und das Raster auf groesseren
-Bildschirmen behalten ihr bisheriges Layout. Originale Kacheln, Navigation,
-Aktionen und Wiedergabelogik bleiben zustaendig. Servercode und vorhandene
-Sicherheitskorrekturen werden nicht geaendert. Webdateien: Cachekennung v22.
+Die Korrektur reduziert bei schmalen Bildschirmen die Desktop-Abstaende,
+beruecksichtigt die zusaetzlichen Kindraender des originalen MUI-Stacks und
+passt die Werkzeuggroessen an die verfuegbare Breite an. Alle originalen
+Bedienelemente und ihre Handler bleiben bestehen. Das Zweispaltenraster und
+die grosse Vorschau bleiben erhalten. Servercode und Sicherheitskorrekturen
+werden nicht geaendert. Webdateien: Cachekennung v23.
 
-Image: ghcr.io/461932-hub/jellyfin-native-security:12.4-preview26
+Image: ghcr.io/461932-hub/jellyfin-native-security:12.4-preview27
 Update: BESTEHENDE CasaOS-App bearbeiten und nur den Image-Tag aendern.
 Kein neuer YAML-Import. Danach die Handy-App vollstaendig schliessen und neu
 oeffnen. Vorhandene Datenordner, Ports, Konten und Einstellungen beibehalten.
 
-Pruefumfang: 232 isolierte Cinema-Browserfaelle einschliesslich 34 Handyfaellen
-bei / und /media. Vier Kacheln pruefen beide Spalten und den Umbruch in die
-naechste Zeile bei 320, 360 und 390 CSS-Pixel. Serien, Filme, Medienreihen,
-native Listen, Startseite, Desktop-Raster und Seitenwechsel werden geprueft.
-Hinzu kommen die bestehenden 186 API-Tests, Dockerstart, TV-Identitaets-,
-Compose-, CasaOS-Portimport- und originalen Erstinstallations-/Browserpruefungen.
+Pruefumfang: 260 isolierte Cinema-Browserfaelle einschliesslich der bisherigen
+34 Handyfaelle und 28 neuer Kopf-/Werkzeugleistenfaelle. Der neue Test bildet
+die originale MUI-Struktur mit zusaetzlicher App-Zurueck-Taste, Profilhuelle,
+Kindraendern und Werkzeuggruppen nach. Preview26 reproduziert darin den
+Profil-Umbruch. Die Korrektur prueft 320/360/390 Pixel bei / und /media sowie
+groessere Bildschirme und einzeln bedienbare Tasten.
 
-Die Handyansicht wird in isoliertem Chromium mit Touch-Eingabe nachgestellt.
-Kein physischer Handy-App-, Fire-TV-, GPU- oder CasaOS-Gesamtoberflaechentest.
-Linux/amd64; Community-Testkandidat, keine offizielle Jellyfin-Version.
-Kein laufender Benutzer-Server wird automatisch aktualisiert.
+Zusaetzlich wird die echte React/MUI-Oberflaeche des gebauten Images auf einer
+frischen Docker-Testinstanz nach regulaerer Anmeldung geprueft: App-Zurueck-
+Taste ueber das NativeShell-Merkmal nachstellen, Leisten bei 320/360/390 Pixeln
+vermessen und das Profilmenue oeffnen. Diese beiden Faelle ergaenzen die sechs
+bestehenden originalen Browser-Setupfaelle. Hinzu kommen 186 API-Tests,
+Dockerstart, TV-Identitaets-, Compose-, CasaOS-Portimport- und Installationsfaelle.
+
+Die Browserpruefungen verwenden kuenstliche Konten und Daten. Ein physischer
+Android-/iOS-App-, Fire-TV-, GPU- oder CasaOS-Gesamtoberflaechentest ist damit
+nicht ersetzt. Linux/amd64; Community-Testkandidat, keine offizielle Jellyfin-
+Version. Kein laufender Benutzer-Server wird automatisch aktualisiert.
