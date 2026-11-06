@@ -35,6 +35,7 @@
     let news = null;
     let featured = null;
     const featuredPools = new Map();
+    let shownPage = null;
 
     function session() {
         try {
@@ -63,9 +64,13 @@
     }
 
     function activePage() {
-        return [...document.querySelectorAll('.mainAnimatedPage')].find(page =>
+        const isVisible = page => page?.isConnected &&
             !page.classList.contains('hide') && page.getBoundingClientRect().height > 0
-            && getComputedStyle(page).display !== 'none');
+            && getComputedStyle(page).display !== 'none';
+        // Native viewshow/pageshow identifies the newly selected page even when
+        // the previous cached view is still visible during its transition.
+        return isVisible(shownPage) ? shownPage
+            : [...document.querySelectorAll('.mainAnimatedPage')].find(isVisible);
     }
 
     function visible(card) {
@@ -1149,15 +1154,42 @@
             || hero.getBoundingClientRect().bottom <= (document.querySelector('header.MuiAppBar-root')?.getBoundingClientRect().bottom || 0) + 24);
         schedule();
     }
+    function nativeVisibilityChanged(record) {
+        const node = record.target;
+        if (node.matches?.('.mainAnimatedPage')) {
+            if (record.attributeName === 'hidden') return (record.oldValue !== null) !== node.hidden;
+            if (record.attributeName === 'class')
+                return (record.oldValue || '').split(/\s+/).includes('hide') !== node.classList.contains('hide');
+            if (record.attributeName === 'style') {
+                const oldDisplay = /(?:^|;)\s*display\s*:\s*([^;]*)/i.exec(record.oldValue || '')?.[1].replace(/\s*!important\s*$/i, '').trim() || '';
+                return oldDisplay !== node.style.display;
+            }
+        }
+        if (record.attributeName === 'class' && node.matches?.('#homeTab,#favoritesTab'))
+            return (record.oldValue || '').split(/\s+/).includes('is-active') !== node.classList.contains('is-active');
+        return false;
+    }
     const observer = new MutationObserver(records => {
-        if (records.some(record => !record.target.closest?.('[data-native-cinema-owned],.native-cinema-art')
-            && [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1
-                && !node.matches?.('[data-native-cinema-owned],.native-cinema-art')))) schedule();
+        if (records.some(record => record.type === 'attributes' ? nativeVisibilityChanged(record)
+            : !record.target.closest?.('[data-native-cinema-owned],.native-cinema-art')
+                && [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1
+                    && !node.matches?.('[data-native-cinema-owned],.native-cinema-art')))) schedule();
     });
+    function nativePageShown(event) {
+        const page = event.target.closest?.('.mainAnimatedPage');
+        if (!page) return;
+        shownPage = page;
+        schedule();
+    }
     function start() {
-        observer.observe(document.body, { childList: true, subtree: true });
+        observer.observe(document.body, { childList: true, subtree: true,
+            attributes: true, attributeOldValue: true, attributeFilter: ['class', 'style', 'hidden'] });
         document.addEventListener('scroll', scroll, { capture: true, passive: true });
-        window.addEventListener('hashchange', () => { closeNews(); heroSnap?.controller.reset(); hideHover(); closeDetails(false); scroll(); schedule(); });
+        const routeChanged = () => { closeNews(); heroSnap?.controller.reset(); hideHover(); closeDetails(false); scroll(); };
+        window.addEventListener('hashchange', routeChanged);
+        window.addEventListener('popstate', routeChanged);
+        document.addEventListener('viewshow', nativePageShown);
+        document.addEventListener('pageshow', nativePageShown);
         document.addEventListener('pointerdown', newsOutside, true);
         document.addEventListener('click', newsOutside, true);
         document.addEventListener('keydown', newsKeydown, true);

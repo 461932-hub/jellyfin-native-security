@@ -21,7 +21,7 @@ werden beim Aktualisieren bewusst weiterverwendet und nicht zurueckgesetzt.
 
 Die Schritt-fuer-Schritt-Anleitung steht in [INSTALLATION.md](INSTALLATION.md).
 Das oeffentlich lesbare Image lautet
-`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview23` (Linux/amd64).
+`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview24` (Linux/amd64).
 Es ist ein Community-Testkandidat mit Cinema-Design und den bereits geprueften
 zusaetzlichen Anmelde-/Bibliothekspruefungen, keine offizielle Jellyfin-Ausgabe.
 
@@ -103,6 +103,14 @@ Die grosse Vorschau wird unabhaengig von den Zusatzdaten der Kacheln aufgebaut.
 Ein gleich grosser Platzhalter reserviert den Bereich waehrend der Auswahl;
 das Raster springt dadurch nicht nachtraeglich nach unten. Bereits gepruefte
 Bibliothekskandidaten und geschuetzte Bilddaten werden beim Zurueckkehren genutzt.
+Das gilt auch fuer zwischengespeicherte Bibliotheksseiten in mobilen Webviews:
+Die Gestaltung reagiert auf Jellyfins originale viewshow-/pageshow-Ereignisse
+und auf native Sichtbarkeitswechsel. Filme, Serien und die Startseite erhalten
+dadurch nach dem Wiedereroeffnen erneut ihre passende grosse Vorschau. Die
+originalen Navigationslinks, Kachelraster, Filter und Wiedergabeaktionen bleiben
+zustaendig. Handy-Hochformat und Querformat werden in einem isolierten
+Chromium-Test mit Touch-Eingabe geprueft; ein physischer Handy-App-Test ist
+dadurch nicht ersetzt.
 Das grosse Bild und sein Logo erhalten fetchpriority=high. Der vorhandene
 Bildadapter zieht solche wartenden Bilder vor normale Cover vor, behaelt aber
 hoechstens sechs aktive Abrufe und alle bisherigen Anmelde-, Ursprung-, Groessen-
@@ -233,7 +241,7 @@ vorhandene TV-Direct-Play-Pfad wird nicht umgestellt.
 ## Build und Nachweise
 
 ```sh
-docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview23 .
+docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview24 .
 ```
 
 Der Build prueft die Quellpruefsummen, kompiliert die Linux-x64-Laufzeit und
@@ -241,10 +249,13 @@ uebernimmt Webclient und FFmpeg aus dem fest auf Digest gebundenen offiziellen
 12.4-Image. Saemtliche zugehoerigen geaenderten Serverquellen sind ebenfalls
 im Image unter `/usr/share/jellyfin-native-source/` enthalten.
 
-Die lokalen Vorpruefungen umfassen 186 API-Tests, 65 dokumentierte Schritte an
-einer frischen Serverinstanz und sieben Browserpruefungen. Details und Grenzen
-stehen in `PRUEFBERICHT.txt` und `PROXY-HINWEISE.txt`. Der GitHub-Build fuehrt
-die API-Tests erneut unter Linux sowie einen getrennten echten Docker-Start
+Der GitHub-Build prueft 224 isolierte Cinema-Browserfaelle, davon 26 fuer
+mobile Seitenwechsel, sowie 186 API-Tests unter Linux. Dazu kommen die
+originalen Erstinstallations-/Browserpruefungen, acht Compose-Modelle und
+fuenf rohe CasaOS-Port-Importfaelle. Details und Grenzen stehen in den
+Pruefergebnissen des jeweiligen Releases; `PRUEFBERICHT.txt` und
+`PROXY-HINWEISE.txt` dokumentieren zusaetzlich die frueheren Serverpruefungen.
+Der Build fuehrt einen getrennten echten Docker-Start
 mit frisch angelegten root-eigenen Bind-Ordnern und anonymen Bild-/Videoanfragen
 aus. Zusaetzlich werden der Rechteabwurf, der Neustart mit vorhandenen Daten,
 die Ablehnung fremder Verzeichnisse und der Medien-Leseschutz geprueft. Ein
