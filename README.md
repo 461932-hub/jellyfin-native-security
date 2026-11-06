@@ -21,7 +21,7 @@ werden beim Aktualisieren bewusst weiterverwendet und nicht zurueckgesetzt.
 
 Die Schritt-fuer-Schritt-Anleitung steht in [INSTALLATION.md](INSTALLATION.md).
 Das oeffentlich lesbare Image lautet
-`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview25` (Linux/amd64).
+`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview26` (Linux/amd64).
 Es ist ein Community-Testkandidat mit Cinema-Design und den bereits geprueften
 zusaetzlichen Anmelde-/Bibliothekspruefungen, keine offizielle Jellyfin-Ausgabe.
 
@@ -112,9 +112,9 @@ zustaendig. Handy-Hochformat und Querformat werden in einem isolierten
 Chromium-Test mit Touch-Eingabe geprueft; ein physischer Handy-App-Test ist
 dadurch nicht ersetzt.
 Auf schmalen Handyansichten bis 650 CSS-Pixel stehen die originalen Film-,
-Serien-, Staffel- und Folgenkacheln in den Film-/Serienbibliotheken einzeln
-untereinander. Das gilt auch fuer dortige Medienreihen. Die grosse Vorschau,
-horizontale Startseiten-Reihen, explizite Listenansichten und das Raster auf
+Serien-, Staffel- und Folgenkacheln in den Film-/Serienbibliotheken
+zu zweit nebeneinander, weitere darunter. Das gilt auch fuer Medienreihen.
+Die grosse Vorschau, horizontale Startseiten-Reihen, explizite Listenansichten und das Raster auf
 groesseren Bildschirmen bleiben erhalten. Es wird nur die Anordnung geaendert.
 Das grosse Bild und sein Logo erhalten fetchpriority=high. Der vorhandene
 Bildadapter zieht solche wartenden Bilder vor normale Cover vor, behaelt aber
@@ -246,7 +246,7 @@ vorhandene TV-Direct-Play-Pfad wird nicht umgestellt.
 ## Build und Nachweise
 
 ```sh
-docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview25 .
+docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview26 .
 ```
 
 Der Build prueft die Quellpruefsummen, kompiliert die Linux-x64-Laufzeit und

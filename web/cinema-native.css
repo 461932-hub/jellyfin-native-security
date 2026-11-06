@@ -359,16 +359,16 @@ html:not(.native-cinema-disabled) .native-cinema-load-more { width: 100%; paddin
     html:not(.native-cinema-disabled) .native-cinema-hero-title { font-size: 32px; }
     html:not(.native-cinema-disabled) .native-cinema-hero-overview { font-size: 14px; }
     html:not(.native-cinema-disabled) :is(#tvshowsPage,#moviesPage) :is(.card[data-native-cinema-wide],.card.backdropCard[data-type="Movie"],.card.backdropCard[data-type="Series"]) { width: 50%; }
-    /* Phone libraries stack their original media cards. Home keeps its rails;
+    /* Phone libraries wrap original media cards into two columns. Home keeps its rails;
        native list views and non-media tabs keep their original layout. */
     html:not(.native-cinema-disabled) :is(#tvshowsPage,#moviesPage) .itemsContainer:not(.vertical-list):has(> .card:is([data-type="Movie"],[data-type="Series"],[data-type="Episode"],[data-type="Season"])) {
-        display: flex; flex-flow: column nowrap; align-items: stretch;
+        display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); align-items: start;
         box-sizing: border-box; width: 100%; max-width: 100%;
         white-space: normal;
     }
     html:not(.native-cinema-disabled) :is(#tvshowsPage,#moviesPage) .itemsContainer:not(.vertical-list) > .card:is([data-type="Movie"],[data-type="Series"],[data-type="Episode"],[data-type="Season"]) {
-        box-sizing: border-box; flex: 0 0 auto; width: 100% !important;
-        min-width: 0; max-width: 100%; margin-inline: 0;
+        box-sizing: border-box; width: 100% !important;
+        min-width: 0 !important; max-width: 100%; margin-inline: 0;
     }
     html:not(.native-cinema-disabled) .sectionTitle { font-size: 20px; }
 }
