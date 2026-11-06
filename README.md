@@ -117,8 +117,8 @@ einer Zeile. Darunter stehen Bibliotheksname und Anzahl sowie eine eigene
 vollstaendige Zeile fuer Abspielen/Zufall, Filter, Sortierung, Ansicht und
 die Blaettertasten. Die originale Stack-Struktur und ihre nativen Aktionen
 bleiben bestehen. Die echte React/MUI-Oberflaeche wird zusaetzlich auf einer
-frischen Docker-Testinstanz bei 320/360/390 Pixeln mit nachgestelltem
-NativeShell-Merkmal und weiterhin bedienbarem Profilmenue geprueft.
+frischen Docker-Testinstanz bei 320/360/390 Pixeln mit einer zusaetzlichen,
+originalgetreu geformten App-Zurueck-Taste und bedienbarem Profilmenue geprueft.
 Auf schmalen Handyansichten bis 650 CSS-Pixel stehen die originalen Film-,
 Serien-, Staffel- und Folgenkacheln in den Film-/Serienbibliotheken
 zu zweit nebeneinander, weitere darunter. Das gilt auch fuer Medienreihen.

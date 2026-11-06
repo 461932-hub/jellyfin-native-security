@@ -54,9 +54,9 @@ const note=name=>{checks.push({name,passed:true});console.log('PASS '+name);};
   assert.equal((await context.request.get(b+'/Startup/User')).status(),200);
   const denied=await context.request.post(b+'/Users/AuthenticateByName',{data:{Username:username,Pw:password},headers:{Authorization:'MediaBrowser Client="CI setup", Device="Fixture", DeviceId="separate-instance", Version="1.0"'}});assert(denied.status()>=400);
   note('The chosen administrator exists only in its own installation; original first-time setup closes after completion');
-  // Exercise the actual React/MUI header from the image. NativeShell is
-  // enabled only after ordinary login to model the app-only Back affordance;
-  // no physical Android bridge or player is claimed by this check.
+  // Exercise the image's actual React/MUI header after ordinary login. Add
+  // only a source-shaped app Back button, using the real Menu button classes;
+  // do not impersonate the complete Android NativeShell bridge.
   const mobile=await browser.newContext({locale:'en-US',viewport:{width:360,height:780},isMobile:true,hasTouch:true});
   await mobile.route('**/*',r=>new URL(r.request().url()).origin===a?r.continue():r.abort());
   const phone=await mobile.newPage(),phoneErrors=[];phone.on('pageerror',e=>phoneErrors.push(e.name));let phoneToken;
@@ -70,7 +70,15 @@ const note=name=>{checks.push({name,passed:true});console.log('PASS '+name);};
    await phone.locator('button[aria-controls="app-user-menu"]').waitFor({state:'visible'});
    await phone.waitForFunction(()=>location.hash.split('?')[0]==='#/home');
    phoneToken=await phone.evaluate(()=>window.ApiClient.accessToken());
-   await phone.evaluate(()=>{window.NativeShell=window.NativeShell||{};location.hash='/movies?collectionType=movies';});
+   await phone.evaluate(()=>{location.hash='/movies?collectionType=movies';});
+   await phone.locator('header .MuiStack-root .MuiButtonGroup-contained').waitFor({state:'visible'});
+   await phone.evaluate(()=>{
+    const bar=document.querySelector('header.MuiAppBar-root > .MuiToolbar-root:first-child');
+    const menu=bar.querySelector('button.MuiIconButton-root');
+    const back=menu.cloneNode(true);back.setAttribute('aria-label','Back');back.dataset.appBackFixture='true';
+    back.querySelector('svg path')?.setAttribute('d','M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.42-1.41L7.83 13H20z');
+    menu.after(back);
+   });
    await phone.getByRole('button',{name:'Back',exact:true}).waitFor({state:'visible'});
    await phone.locator('header .native-cinema-news-button').waitFor({state:'visible'});
    await phone.locator('header .MuiStack-root .MuiButtonGroup-contained').waitFor({state:'visible'});
@@ -83,7 +91,7 @@ const note=name=>{checks.push({name,passed:true});console.log('PASS '+name);};
     assert.equal(tools.length,7,'Actual native library renders play/shuffle, filter/sort/view and both page buttons');
     assert.ok(tools.every(r=>r.x>=0&&r.right<=width+1&&Math.abs(r.y-tools[0].y)<2),'Actual native library controls must fit one complete row');
    }
-   note('Actual image React/MUI header fits app-only Back, bell, profile and all seven library controls at 320/360/390px');
+   note('Actual image React/MUI header with source-shaped app Back button fits all actions at 320/360/390px');
    await phone.setViewportSize({width:360,height:780});
    await phone.screenshot({path:path.join(__dirname,'../test-results/native-header-mobile.png')});
    await phone.locator('button[aria-controls="app-user-menu"]').click();

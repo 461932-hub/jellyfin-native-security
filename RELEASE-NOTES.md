@@ -26,9 +26,9 @@ Profil-Umbruch. Die Korrektur prueft 320/360/390 Pixel bei / und /media sowie
 groessere Bildschirme und einzeln bedienbare Tasten.
 
 Zusaetzlich wird die echte React/MUI-Oberflaeche des gebauten Images auf einer
-frischen Docker-Testinstanz nach regulaerer Anmeldung geprueft: App-Zurueck-
-Taste ueber das NativeShell-Merkmal nachstellen, Leisten bei 320/360/390 Pixeln
-vermessen und das Profilmenue oeffnen. Diese beiden Faelle ergaenzen die sechs
+frischen Docker-Testinstanz nach regulaerer Anmeldung geprueft: Eine App-
+Zurueck-Taste mit den echten MUI-Knopfklassen ergaenzen, die Leisten bei
+320/360/390 Pixeln vermessen und das Profilmenue oeffnen. Diese beiden Faelle ergaenzen die sechs
 bestehenden originalen Browser-Setupfaelle. Hinzu kommen 186 API-Tests,
 Dockerstart, TV-Identitaets-, Compose-, CasaOS-Portimport- und Installationsfaelle.
 
