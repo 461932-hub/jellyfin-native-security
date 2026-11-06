@@ -68,9 +68,10 @@ const note=name=>{checks.push({name,passed:true});console.log('PASS '+name);};
    if(await manual.isVisible().catch(()=>false))await manual.click();
    await name.fill(username);const pw=phone.locator('input[type="password"]').first();await pw.fill(password);await pw.press('Enter');
    await phone.locator('button[aria-controls="app-user-menu"]').waitFor({state:'visible'});
+   await phone.waitForFunction(()=>location.hash.split('?')[0]==='#/home');
    phoneToken=await phone.evaluate(()=>window.ApiClient.accessToken());
    await phone.evaluate(()=>{window.NativeShell=window.NativeShell||{};location.hash='/movies?collectionType=movies';});
-   await phone.locator('header .MuiToolbar-root:first-child svg[data-testid="ArrowBackIcon"]').waitFor({state:'visible'});
+   await phone.getByRole('button',{name:'Back',exact:true}).waitFor({state:'visible'});
    await phone.locator('header .native-cinema-news-button').waitFor({state:'visible'});
    await phone.locator('header .MuiStack-root .MuiButtonGroup-contained').waitFor({state:'visible'});
    for(const width of [320,360,390]){
@@ -90,6 +91,10 @@ const note=name=>{checks.push({name,passed:true});console.log('PASS '+name);};
    await phone.keyboard.press('Escape');
    assert.deepEqual(phoneErrors,[]);
    note('Actual native profile menu still opens from the compact mobile header');
+  }catch(error){
+   const diagnostic=await phone.evaluate(()=>({route:location.hash.split('?')[0],nativeShell:!!window.NativeShell,historyLength:history.length,buttons:[...document.querySelectorAll('header button')].map(n=>({label:n.getAttribute('aria-label'),width:n.getBoundingClientRect().width,top:n.getBoundingClientRect().top}))})).catch(()=>({unavailable:true}));
+   console.error('Mobile header diagnostic: '+JSON.stringify(diagnostic));
+   throw error;
   }finally{if(phoneToken)await mobile.request.post(a+'/Sessions/Logout',{headers:{Authorization:'MediaBrowser Token="'+phoneToken+'"'}});await mobile.close();}
  }finally{await context.request.post(a+'/Sessions/Logout',{headers:auth});}
  const other=await browser.newContext();await other.route('**/*',r=>new URL(r.request().url()).origin===b?r.continue():r.abort());
