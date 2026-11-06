@@ -84,7 +84,7 @@ const note=name=>{checks.push({name,passed:true});console.log('PASS '+name);};
    await phone.locator('header .MuiStack-root .MuiButtonGroup-contained').waitFor({state:'visible'});
    for(const width of [320,360,390]){
     await phone.setViewportSize({width,height:780});await phone.waitForTimeout(150);
-    const top=await phone.locator('header.MuiAppBar-root > .MuiToolbar-root:first-child button').evaluateAll(nodes=>nodes.filter(n=>n.getBoundingClientRect().width>0).map(n=>{const r=n.getBoundingClientRect();return{x:r.x,right:r.right,y:r.y+r.height/2};}));
+    const top=await phone.locator('header.MuiAppBar-root > .MuiToolbar-root:first-child :is(.MuiIconButton-root,.native-cinema-news-button)').evaluateAll(nodes=>nodes.filter(n=>n.getBoundingClientRect().width>0).map(n=>{const r=n.getBoundingClientRect();return{x:r.x,right:r.right,y:r.y+r.height/2};}));
     assert.equal(top.length,7,'Actual app header includes Menu, Back, bell, SyncPlay, cast, search and profile');
     assert.ok(top.every(r=>r.x>=0&&r.right<=width+1&&Math.abs(r.y-top[0].y)<2),'Actual React topbar must keep every action in one line');
     const tools=await phone.locator('header .MuiStack-root .MuiButtonGroup-root > button').evaluateAll(nodes=>nodes.filter(n=>n.getBoundingClientRect().width>0).map(n=>{const r=n.getBoundingClientRect();return{x:r.x,right:r.right,y:r.y+r.height/2};}));
