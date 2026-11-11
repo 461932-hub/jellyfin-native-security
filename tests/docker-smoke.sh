@@ -32,7 +32,9 @@ docker run --rm --read-only --cap-drop ALL --user "$(id -u):$(id -g)" \
     -f lavfi -i 'color=c=blue:s=320x180:r=10:d=4' \
     -f lavfi -i 'sine=frequency=440:sample_rate=48000:duration=4' \
     -c:v libx264 -pix_fmt yuv420p -c:a aac -ac 2 -shortest -movflags +faststart \
-    '/fixture/Native Identity Fixture (2026).mp4'
+    '/fixture/Native Identity Fixture (2026).mp4' \
+    -map 0:v:0 -frames:v 1 -c:v png -threads:v 1 \
+    '/fixture/Native Identity Fixture (2026)-poster.png'
 sudo chown 0:0 "$task_bind/config" "$task_bind/cache" "$task_bind/foreign"
 printf 'foreign-data-marker\n' | sudo tee "$task_bind/foreign/keep" >/dev/null
 sudo chown 2000:2000 "$task_bind/private"

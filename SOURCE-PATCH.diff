@@ -74,11 +74,10 @@
  </Project>
 --- /dev/null
 +++ b/Jellyfin.Api/Security/AndroidTvImageFilter.cs
-@@ -0,0 +1,204 @@
+@@ -0,0 +1,234 @@
 +// Native media hardening for the 12.4 test fork. GPL-2.0-or-later.
 +using System;
 +using System.Collections.Generic;
-+using System.IO;
 +using System.Linq;
 +using System.Text.Json;
 +using System.Text.Json.Nodes;
@@ -97,6 +96,8 @@
 +/// <summary>Adapt per-response image tags, without mutating native library DTOs.</summary>
 +internal sealed class AndroidTvImageFilter(ImageGrantProtector grants, IOptions<JsonOptions> json, IOptionsMonitor<SecureMediaOptions> secureOptions) : IAsyncResultFilter
 +{
++    private const int GrantLimit = 8192;
++
 +    public async Task OnResultExecutionAsync(ResultExecutingContext context, ResultExecutionDelegate next)
 +    {
 +        var http = context.HttpContext;
@@ -126,10 +127,34 @@
 +        // Serializing into a separate tree avoids modifying per-user or shared
 +        // native DTO dictionaries and retains Jellyfin's configured JSON shape.
 +        var tree = JsonSerializer.SerializeToNode(result.Value, result.Value.GetType(), json.Value.JsonSerializerOptions);
-+        var nodes = 20000;
-+        var remaining = 8192;
-+        Visit(tree);
-+        if (remaining < 8192)
++        var remaining = GrantLimit;
++        IEnumerable<JsonObject> entries = tree switch
++        {
++            JsonArray array => array.OfType<JsonObject>(),
++            JsonObject obj when result.Value is QueryResult<BaseItemDto> && Property(obj, "Items") is JsonArray items => items.OfType<JsonObject>(),
++            JsonObject obj when result.Value is SearchHintResult && Property(obj, "SearchHints") is JsonArray hints => hints.OfType<JsonObject>(),
++            JsonObject obj => [obj],
++            _ => [],
++        };
++
++        // The list can contain thousands of cast entries. Give every movie's
++        // artwork priority over related images elsewhere in the same page.
++        foreach (var entry in entries)
++        {
++            ProtectImages(entry);
++        }
++
++        foreach (var entry in entries)
++        {
++            if (remaining <= 0)
++            {
++                break;
++            }
++
++            ProtectRelatedImages(entry);
++        }
++
++        if (remaining < GrantLimit)
 +        {
 +            result.Value = tree;
 +            result.DeclaredType = typeof(JsonNode);
@@ -139,31 +164,36 @@
 +
 +        await next();
 +
-+        void Visit(JsonNode? value)
++        void ProtectRelatedImages(JsonObject item)
 +        {
-+            if (value is null || nodes-- <= 0 || remaining <= 0)
++            if (remaining > 0 && Property(item, "CurrentProgram") is JsonObject program)
 +            {
-+                return;
++                ProtectImages(program);
++                ProtectRelatedImages(program);
 +            }
 +
-+            if (value is JsonArray array)
++            if (remaining > 0 && Property(item, "People") is JsonArray people)
 +            {
-+                foreach (var entry in array)
++                foreach (var person in people.OfType<JsonObject>())
 +                {
-+                    Visit(entry);
++                    if (remaining <= 0)
++                    {
++                        break;
++                    }
++
++                    if (Key(person, "PrimaryImageTag") is { } primary)
++                    {
++                        Replace(person, primary, person, Id(person, "Id"), ImageType.Primary, 0);
++                    }
 +                }
-+
-+                return;
 +            }
++        }
 +
-+            if (value is not JsonObject obj)
++        void ProtectImages(JsonObject obj)
++        {
++            if (remaining <= 0)
 +            {
 +                return;
-+            }
-+
-+            foreach (var entry in obj.ToArray())
-+            {
-+                Visit(entry.Value);
 +            }
 +
 +            var id = Id(obj, "Id");
@@ -232,7 +262,7 @@
 +                return;
 +            }
 +
-+            for (var i = 0; i < tags.Count && i < 1000; i++)
++            for (var i = 0; i < tags.Count && i < 1000 && remaining > 0; i++)
 +            {
 +                var original = Text(tags[i]);
 +                var replacement = Protect(original, id, type, i);
@@ -1769,12 +1799,26 @@
                  mainApp.UseQueryStringDecoding();
 --- /dev/null
 +++ b/tests/Jellyfin.Api.Tests/Security/NativeMediaSecurityTests.cs
-@@ -0,0 +1,248 @@
+@@ -0,0 +1,347 @@
 +using System;
 +using System.Collections.Generic;
++using System.Linq;
++using System.Reflection;
++using System.Security.Claims;
++using System.Text.Json.Nodes;
++using System.Text.Json.Serialization;
 +using System.Threading.Tasks;
++using Jellyfin.Api.Controllers;
 +using Jellyfin.Api.Security;
++using MediaBrowser.Model.Dto;
++using MediaBrowser.Model.Entities;
++using MediaBrowser.Model.Querying;
 +using Microsoft.AspNetCore.Http;
++using Microsoft.AspNetCore.Mvc;
++using Microsoft.AspNetCore.Mvc.Abstractions;
++using Microsoft.AspNetCore.Mvc.Controllers;
++using Microsoft.AspNetCore.Mvc.Filters;
++using Microsoft.AspNetCore.Routing;
 +using Microsoft.Extensions.Options;
 +using Xunit;
 +
@@ -1788,6 +1832,91 @@
 +    private const string Device = "fire-tv-one";
 +    private static readonly Guid UserId = Guid.Parse("11111111111111111111111111111111");
 +    private static readonly Guid ItemId = Guid.Parse("22222222222222222222222222222222");
++
++    [Theory]
++    [InlineData(true)]
++    [InlineData(false)]
++    public async Task ImageFilter_ProtectsEveryMovieCoverOnAFullPage(bool wrapped)
++    {
++        // The TV grid asks for 100 movies at a time. A large cast in each entry
++        // must not consume the image grants needed for later movie covers.
++        var cast = Enumerable.Range(0, 90).Select(index => new BaseItemPerson
++        {
++            Id = Guid.NewGuid(),
++            Name = "Actor " + index,
++            Role = "Character " + index,
++            PrimaryImageTag = "cast-poster",
++        }).ToArray();
++        var movies = Enumerable.Range(0, 100).Select(index => new BaseItemDto
++        {
++            Id = Guid.NewGuid(),
++            Name = "Movie " + index,
++            People = cast,
++            ImageTags = new Dictionary<ImageType, string>
++            {
++                [ImageType.Primary] = "movie-poster",
++                [ImageType.Thumb] = "movie-thumb",
++            },
++            BackdropImageTags = ["movie-backdrop"],
++        }).ToArray();
++        var result = new OkObjectResult(wrapped ? new QueryResult<BaseItemDto>(100, 300, movies) : movies);
++        Claim[] claims =
++        [
++            new Claim("Jellyfin-Client", "Jellyfin Android TV"),
++            new Claim("Jellyfin-Version", "0.19.10"),
++            new Claim("Jellyfin-DeviceId", Device),
++            new Claim("Jellyfin-Token", NativeToken),
++            new Claim("Jellyfin-UserId", UserId.ToString("N")),
++        ];
++        var http = new DefaultHttpContext
++        {
++            User = new ClaimsPrincipal(new ClaimsIdentity(claims, "test")),
++        };
++        http.Request.Scheme = "http";
++        ActionDescriptor descriptor = new ControllerActionDescriptor { ControllerTypeInfo = typeof(ItemsController).GetTypeInfo() };
++        var action = new ActionContext(http, new RouteData(), descriptor);
++        var controller = new object();
++        var context = new ResultExecutingContext(action, [], result, controller);
++        var json = new JsonOptions();
++        json.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
++        json.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
++        var grants = new ImageGrantProtector(new Clock());
++        var filter = new AndroidTvImageFilter(grants, Options.Create(json), new Monitor(new SecureMediaOptions { AllowInsecureHttpImages = true }));
++        await filter.OnResultExecutionAsync(context, () => Task.FromResult(new ResultExecutedContext(action, [], result, controller)));
++
++        var tree = Assert.IsAssignableFrom<JsonNode>(result.Value);
++        var entries = Assert.IsType<JsonArray>(wrapped ? tree["items"] : tree);
++        Assert.Equal(100, entries.Count);
++        if (wrapped)
++        {
++            Assert.Equal(100, tree["startIndex"]!.GetValue<int>());
++            Assert.Equal(300, tree["totalRecordCount"]!.GetValue<int>());
++        }
++
++        for (var index = 0; index < movies.Length; index++)
++        {
++            var entry = entries[index]!;
++            var id = movies[index].Id;
++            AssertGrant(entry["imageTags"]![nameof(ImageType.Primary)], id, ImageType.Primary);
++            AssertGrant(entry["imageTags"]![nameof(ImageType.Thumb)], id, ImageType.Thumb);
++            AssertGrant(entry["backdropImageTags"]![0], id, ImageType.Backdrop);
++            Assert.Equal("movie-poster", movies[index].ImageTags[ImageType.Primary]);
++        }
++
++        AssertGrant(entries[0]!["people"]![0]!["primaryImageTag"], cast[0].Id, ImageType.Primary);
++        Assert.Equal("cast-poster", cast[0].PrimaryImageTag);
++        Assert.Equal("private, no-store", http.Response.Headers.CacheControl.ToString());
++
++        void AssertGrant(JsonNode? value, Guid id, ImageType type)
++        {
++            Assert.NotNull(value);
++            Assert.True(grants.TryRead(value.GetValue<string>(), out var grant));
++            Assert.NotNull(grant);
++            Assert.Equal(id, grant.ItemId);
++            Assert.Equal(type, grant.Type);
++            Assert.Equal(UserId, grant.UserId);
++        }
++    }
 +
 +    [Fact]
 +    public void Capability_IsOpaqueAndContainsNoNativeToken()

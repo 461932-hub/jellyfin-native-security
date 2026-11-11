@@ -1,7 +1,7 @@
 name: jellyfin-cinema
 services:
   jellyfin:
-    image: ghcr.io/461932-hub/jellyfin-native-security:12.4-preview27
+    image: ghcr.io/461932-hub/jellyfin-native-security:12.4-preview28
     platform: linux/amd64
     user: "0:0"
     restart: unless-stopped
@@ -134,4 +134,4 @@ x-casaos:
   description:
     en_US: Jellyfin with Cinema presentation and additional media authentication. Original first-run wizard; no preset account or library. CPU template; hardware devices can be added in CasaOS.
     de_DE: Jellyfin mit Cinema-Darstellung und zusaetzlicher Medienanmeldung. Originaler Einrichtungsassistent ohne vorgegebenes Konto oder Bibliothek. CPU-Vorlage; Hardwaregeraete koennen in CasaOS hinzugefuegt werden.
-  version: 12.4-preview27
+  version: 12.4-preview28

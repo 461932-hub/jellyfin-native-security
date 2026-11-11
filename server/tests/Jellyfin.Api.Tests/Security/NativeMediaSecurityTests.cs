@@ -1,8 +1,22 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Security.Claims;
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
+using Jellyfin.Api.Controllers;
 using Jellyfin.Api.Security;
+using MediaBrowser.Model.Dto;
+using MediaBrowser.Model.Entities;
+using MediaBrowser.Model.Querying;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -16,6 +30,91 @@ public sealed class NativeMediaSecurityTests
     private const string Device = "fire-tv-one";
     private static readonly Guid UserId = Guid.Parse("11111111111111111111111111111111");
     private static readonly Guid ItemId = Guid.Parse("22222222222222222222222222222222");
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ImageFilter_ProtectsEveryMovieCoverOnAFullPage(bool wrapped)
+    {
+        // The TV grid asks for 100 movies at a time. A large cast in each entry
+        // must not consume the image grants needed for later movie covers.
+        var cast = Enumerable.Range(0, 90).Select(index => new BaseItemPerson
+        {
+            Id = Guid.NewGuid(),
+            Name = "Actor " + index,
+            Role = "Character " + index,
+            PrimaryImageTag = "cast-poster",
+        }).ToArray();
+        var movies = Enumerable.Range(0, 100).Select(index => new BaseItemDto
+        {
+            Id = Guid.NewGuid(),
+            Name = "Movie " + index,
+            People = cast,
+            ImageTags = new Dictionary<ImageType, string>
+            {
+                [ImageType.Primary] = "movie-poster",
+                [ImageType.Thumb] = "movie-thumb",
+            },
+            BackdropImageTags = ["movie-backdrop"],
+        }).ToArray();
+        var result = new OkObjectResult(wrapped ? new QueryResult<BaseItemDto>(100, 300, movies) : movies);
+        Claim[] claims =
+        [
+            new Claim("Jellyfin-Client", "Jellyfin Android TV"),
+            new Claim("Jellyfin-Version", "0.19.10"),
+            new Claim("Jellyfin-DeviceId", Device),
+            new Claim("Jellyfin-Token", NativeToken),
+            new Claim("Jellyfin-UserId", UserId.ToString("N")),
+        ];
+        var http = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(claims, "test")),
+        };
+        http.Request.Scheme = "http";
+        ActionDescriptor descriptor = new ControllerActionDescriptor { ControllerTypeInfo = typeof(ItemsController).GetTypeInfo() };
+        var action = new ActionContext(http, new RouteData(), descriptor);
+        var controller = new object();
+        var context = new ResultExecutingContext(action, [], result, controller);
+        var json = new JsonOptions();
+        json.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+        json.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        var grants = new ImageGrantProtector(new Clock());
+        var filter = new AndroidTvImageFilter(grants, Options.Create(json), new Monitor(new SecureMediaOptions { AllowInsecureHttpImages = true }));
+        await filter.OnResultExecutionAsync(context, () => Task.FromResult(new ResultExecutedContext(action, [], result, controller)));
+
+        var tree = Assert.IsAssignableFrom<JsonNode>(result.Value);
+        var entries = Assert.IsType<JsonArray>(wrapped ? tree["items"] : tree);
+        Assert.Equal(100, entries.Count);
+        if (wrapped)
+        {
+            Assert.Equal(100, tree["startIndex"]!.GetValue<int>());
+            Assert.Equal(300, tree["totalRecordCount"]!.GetValue<int>());
+        }
+
+        for (var index = 0; index < movies.Length; index++)
+        {
+            var entry = entries[index]!;
+            var id = movies[index].Id;
+            AssertGrant(entry["imageTags"]![nameof(ImageType.Primary)], id, ImageType.Primary);
+            AssertGrant(entry["imageTags"]![nameof(ImageType.Thumb)], id, ImageType.Thumb);
+            AssertGrant(entry["backdropImageTags"]![0], id, ImageType.Backdrop);
+            Assert.Equal("movie-poster", movies[index].ImageTags[ImageType.Primary]);
+        }
+
+        AssertGrant(entries[0]!["people"]![0]!["primaryImageTag"], cast[0].Id, ImageType.Primary);
+        Assert.Equal("cast-poster", cast[0].PrimaryImageTag);
+        Assert.Equal("private, no-store", http.Response.Headers.CacheControl.ToString());
+
+        void AssertGrant(JsonNode? value, Guid id, ImageType type)
+        {
+            Assert.NotNull(value);
+            Assert.True(grants.TryRead(value.GetValue<string>(), out var grant));
+            Assert.NotNull(grant);
+            Assert.Equal(id, grant.ItemId);
+            Assert.Equal(type, grant.Type);
+            Assert.Equal(UserId, grant.UserId);
+        }
+    }
 
     [Fact]
     public void Capability_IsOpaqueAndContainsNoNativeToken()

@@ -49,7 +49,7 @@ Keine festen alten `container_name`, `x-casaos.id` oder Konfigurationspfade
 uebernehmen. Medienordner koennen bei passenden Berechtigungen geteilt werden.
 
 Zum **Aktualisieren** dagegen die vorhandene CasaOS-App bearbeiten: Image
-`ghcr.io/461932-hub/jellyfin-native-security`, Tag `12.4-preview27`.
+`ghcr.io/461932-hub/jellyfin-native-security`, Tag `12.4-preview28`.
 
 Preview27 korrigiert die obere Leiste in der Handy-App einschliesslich
 der zusaetzlichen Zurueck-Taste. Profil und Werkzeuge bleiben in ihren

@@ -102,6 +102,16 @@ try:
         time.sleep(.5)
     assert item is not None, 'Synthetic media did not appear in the fixture library'
     item_id = item['Id']
+    image_path = '/Items/' + item_id + '/Images/Primary'
+    image_tag = item.get('ImageTags', {}).get('Primary', '')
+    assert image_tag.startswith('mag5_'), 'The TV movie list did not return a protected cover tag'
+    image_query = '?' + urlencode({'tag': image_tag})
+    _, cover = request(image_path + image_query, expected=200)
+    assert len(cover) > 32, 'The authorized cover had no image data'
+    request(image_path, expected=401)
+    request('/Items/' + item_id + '/Images/Backdrop' + image_query, expected=401)
+    passed('A TV list cover loads with its own grant and refuses anonymous or mismatched requests')
+
     payload = {
         'UserId': user_id, 'AudioStreamIndex': 1, 'SubtitleStreamIndex': -1,
         'EnableDirectPlay': True, 'EnableDirectStream': True, 'AutoOpenLiveStream': False,
@@ -158,6 +168,7 @@ try:
                 token=limited, device='ci-restricted-user', expected=403)
         request('/Videos/' + item_id + '/stream?Static=true', token=limited,
                 device='ci-restricted-user', expected=403)
+        request(image_path, token=limited, device='ci-restricted-user', expected=403)
         passed('A different DeviceId cannot bypass current library rights')
     finally:
         request('/Sessions/Logout', 'POST', token=limited, device='ci-restricted-login', expected=204)
@@ -166,6 +177,7 @@ try:
     request('/Sessions/Logout', 'POST', token=token, expected=204)
     token = None
     request('', full_url=final_url, expected=401)
+    request(image_path + image_query, expected=401)
     passed('Native logout still revokes a grant bound to the user-specific DeviceId')
     request('/Videos/' + item_id + '/stream?Static=true', expected=401)
     passed('Anonymous original-file access remains blocked')

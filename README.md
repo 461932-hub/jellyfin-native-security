@@ -21,7 +21,7 @@ werden beim Aktualisieren bewusst weiterverwendet und nicht zurueckgesetzt.
 
 Die Schritt-fuer-Schritt-Anleitung steht in [INSTALLATION.md](INSTALLATION.md).
 Das oeffentlich lesbare Image lautet
-`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview27` (Linux/amd64).
+`ghcr.io/461932-hub/jellyfin-native-security:12.4-preview28` (Linux/amd64).
 Es ist ein Community-Testkandidat mit Cinema-Design und den bereits geprueften
 zusaetzlichen Anmelde-/Bibliothekspruefungen, keine offizielle Jellyfin-Ausgabe.
 
@@ -254,7 +254,7 @@ vorhandene TV-Direct-Play-Pfad wird nicht umgestellt.
 ## Build und Nachweise
 
 ```sh
-docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview27 .
+docker build --platform linux/amd64 -t jellyfin-native-security:12.4-preview28 .
 ```
 
 Der Build prueft die Quellpruefsummen, kompiliert die Linux-x64-Laufzeit und

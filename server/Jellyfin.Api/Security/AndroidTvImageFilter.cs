@@ -1,7 +1,6 @@
 // Native media hardening for the 12.4 test fork. GPL-2.0-or-later.
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -20,6 +19,8 @@ namespace Jellyfin.Api.Security;
 /// <summary>Adapt per-response image tags, without mutating native library DTOs.</summary>
 internal sealed class AndroidTvImageFilter(ImageGrantProtector grants, IOptions<JsonOptions> json, IOptionsMonitor<SecureMediaOptions> secureOptions) : IAsyncResultFilter
 {
+    private const int GrantLimit = 8192;
+
     public async Task OnResultExecutionAsync(ResultExecutingContext context, ResultExecutionDelegate next)
     {
         var http = context.HttpContext;
@@ -49,10 +50,34 @@ internal sealed class AndroidTvImageFilter(ImageGrantProtector grants, IOptions<
         // Serializing into a separate tree avoids modifying per-user or shared
         // native DTO dictionaries and retains Jellyfin's configured JSON shape.
         var tree = JsonSerializer.SerializeToNode(result.Value, result.Value.GetType(), json.Value.JsonSerializerOptions);
-        var nodes = 20000;
-        var remaining = 8192;
-        Visit(tree);
-        if (remaining < 8192)
+        var remaining = GrantLimit;
+        IEnumerable<JsonObject> entries = tree switch
+        {
+            JsonArray array => array.OfType<JsonObject>(),
+            JsonObject obj when result.Value is QueryResult<BaseItemDto> && Property(obj, "Items") is JsonArray items => items.OfType<JsonObject>(),
+            JsonObject obj when result.Value is SearchHintResult && Property(obj, "SearchHints") is JsonArray hints => hints.OfType<JsonObject>(),
+            JsonObject obj => [obj],
+            _ => [],
+        };
+
+        // The list can contain thousands of cast entries. Give every movie's
+        // artwork priority over related images elsewhere in the same page.
+        foreach (var entry in entries)
+        {
+            ProtectImages(entry);
+        }
+
+        foreach (var entry in entries)
+        {
+            if (remaining <= 0)
+            {
+                break;
+            }
+
+            ProtectRelatedImages(entry);
+        }
+
+        if (remaining < GrantLimit)
         {
             result.Value = tree;
             result.DeclaredType = typeof(JsonNode);
@@ -62,31 +87,36 @@ internal sealed class AndroidTvImageFilter(ImageGrantProtector grants, IOptions<
 
         await next();
 
-        void Visit(JsonNode? value)
+        void ProtectRelatedImages(JsonObject item)
         {
-            if (value is null || nodes-- <= 0 || remaining <= 0)
+            if (remaining > 0 && Property(item, "CurrentProgram") is JsonObject program)
             {
-                return;
+                ProtectImages(program);
+                ProtectRelatedImages(program);
             }
 
-            if (value is JsonArray array)
+            if (remaining > 0 && Property(item, "People") is JsonArray people)
             {
-                foreach (var entry in array)
+                foreach (var person in people.OfType<JsonObject>())
                 {
-                    Visit(entry);
+                    if (remaining <= 0)
+                    {
+                        break;
+                    }
+
+                    if (Key(person, "PrimaryImageTag") is { } primary)
+                    {
+                        Replace(person, primary, person, Id(person, "Id"), ImageType.Primary, 0);
+                    }
                 }
-
-                return;
             }
+        }
 
-            if (value is not JsonObject obj)
+        void ProtectImages(JsonObject obj)
+        {
+            if (remaining <= 0)
             {
                 return;
-            }
-
-            foreach (var entry in obj.ToArray())
-            {
-                Visit(entry.Value);
             }
 
             var id = Id(obj, "Id");
@@ -155,7 +185,7 @@ internal sealed class AndroidTvImageFilter(ImageGrantProtector grants, IOptions<
                 return;
             }
 
-            for (var i = 0; i < tags.Count && i < 1000; i++)
+            for (var i = 0; i < tags.Count && i < 1000 && remaining > 0; i++)
             {
                 var original = Text(tags[i]);
                 var replacement = Protect(original, id, type, i);

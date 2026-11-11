@@ -1,38 +1,22 @@
-Preview 27: Kompakte Kopf- und Werkzeugleisten in der Handy-App.
+Preview 28: Geschuetzte Cover in der Fire-TV-Filmliste
 
-Die obere Leiste beruecksichtigt die app-eigene Zurueck-Taste. Zusammen mit
-Menue, Glocke, SyncPlay, Uebertragen, Suche und Profil passt sie bei schmalen
-Ansichten in eine Zeile. Der Profilknopf bricht nicht mehr alleine nach unten um.
-Unter Bibliotheksname und Anzahl bleibt eine vollstaendige Werkzeugzeile fuer
-Abspielen/Zufall, Filter, Sortierung, Ansicht und beide Blaettertasten.
+Bei einer umfangreichen Filmliste konnten Metadaten und Besetzung den
+Durchlauf des Bildfilters fruehzeitig beenden. Spaetere Kacheln bekamen
+dann keine Bildberechtigung und der Server antwortete beim Laden mit 401.
+Die Filmseite lud den einzelnen Titel separat.
 
-Die Korrektur reduziert bei schmalen Bildschirmen die Desktop-Abstaende,
-beruecksichtigt die zusaetzlichen Kindraender des originalen MUI-Stacks und
-passt die Werkzeuggroessen an die verfuegbare Breite an. Alle originalen
-Bedienelemente und ihre Handler bleiben bestehen. Das Zweispaltenraster und
-die grosse Vorschau bleiben erhalten. Servercode und Sicherheitskorrekturen
-werden nicht geaendert. Webdateien: Cachekennung v23.
+Der Filter verarbeitet die Bilder aller Titel einer Listenseite vor den
+Bildern der Besetzung. Er durchlaeuft nur die vorgesehenen Bildfelder.
+Berechtigungen gelten weiterhin zehn Minuten fuer das jeweilige Bild.
+Bei einer HTTP-Verbindung im Heimnetz gilt die vorhandene Einstellung
+JELLYFIN_SecureMedia__AllowInsecureHttpImages.
 
-Image: ghcr.io/461932-hub/jellyfin-native-security:12.4-preview27
-Update: BESTEHENDE CasaOS-App bearbeiten und nur den Image-Tag aendern.
-Kein neuer YAML-Import. Danach die Handy-App vollstaendig schliessen und neu
-oeffnen. Vorhandene Datenordner, Ports, Konten und Einstellungen beibehalten.
+Image: ghcr.io/461932-hub/jellyfin-native-security:12.4-preview28
+Update: Die bestehende CasaOS-App bearbeiten, Tag aendern und speichern.
+Anschliessend Jellyfin auf dem Fire TV vollstaendig schliessen und neu oeffnen.
 
-Pruefumfang: 260 isolierte Cinema-Browserfaelle einschliesslich der bisherigen
-34 Handyfaelle und 28 neuer Kopf-/Werkzeugleistenfaelle. Der neue Test bildet
-die originale MUI-Struktur mit zusaetzlicher App-Zurueck-Taste, Profilhuelle,
-Kindraendern und Werkzeuggruppen nach. Preview26 reproduziert darin den
-Profil-Umbruch. Die Korrektur prueft 320/360/390 Pixel bei / und /media sowie
-groessere Bildschirme und einzeln bedienbare Tasten.
-
-Zusaetzlich wird die echte React/MUI-Oberflaeche des gebauten Images auf einer
-frischen Docker-Testinstanz nach regulaerer Anmeldung geprueft: Eine App-
-Zurueck-Taste mit den echten MUI-Knopfklassen ergaenzen, die Leisten bei
-320/360/390 Pixeln vermessen und das Profilmenue oeffnen. Diese beiden Faelle ergaenzen die sechs
-bestehenden originalen Browser-Setupfaelle. Hinzu kommen 186 API-Tests,
-Dockerstart, TV-Identitaets-, Compose-, CasaOS-Portimport- und Installationsfaelle.
-
-Die Browserpruefungen verwenden kuenstliche Konten und Daten. Ein physischer
-Android-/iOS-App-, Fire-TV-, GPU- oder CasaOS-Gesamtoberflaechentest ist damit
-nicht ersetzt. Linux/amd64; Community-Testkandidat, keine offizielle Jellyfin-
-Version. Kein laufender Benutzer-Server wird automatisch aktualisiert.
+Die Regressionstests pruefen 100 Filme pro Antwort mit umfangreicher
+Besetzung. Der Docker-Test prueft einen autorisierten Coverabruf und die
+Ablehnung ohne Bildberechtigung, fuer einen anderen Bildtyp, bei fehlenden
+Bibliotheksrechten und nach Abmeldung. Der Teststand nutzt synthetische
+Daten. Die Korrektur muss nach der Installation am Fire TV bestaetigt werden.
