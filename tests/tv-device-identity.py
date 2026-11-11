@@ -96,11 +96,11 @@ try:
         items = api('/Items?' + urlencode({
             'recursive': 'true', 'includeItemTypes': 'Movie', 'searchTerm': 'Native Identity',
             'fields': 'MediaSources'}), token=token, expected=200)['Items']
-        if items and items[0].get('MediaSources'):
+        if items and items[0].get('MediaSources') and (items[0].get('ImageTags') or {}).get('Primary'):
             item = items[0]
             break
         time.sleep(.5)
-    assert item is not None, 'Synthetic media did not appear in the fixture library'
+    assert item is not None, 'Synthetic media and its local poster did not appear in the fixture library'
     item_id = item['Id']
     image_path = '/Items/' + item_id + '/Images/Primary'
     image_tag = item.get('ImageTags', {}).get('Primary', '')
